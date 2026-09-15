@@ -479,14 +479,13 @@ function renderCombo(){
   const etc = Number($("#cEtc").value)||0;
   $("#cLineWrap").style.display = telIt ? "" : "none";
 
-  let total = 0, margin = 0, dedSum = 0, commSum = 0, fee = 0;
+  let total = 0, margin = 0, fee = 0;
   const rows = [];
 
   if(netIt){
     const c = calc(netIt.comm, r.value, netIt.noDed);
     const m = c.base - c.val;
-    total += c.val; margin += m; commSum += netIt.comm;
-    dedSum += netIt.noDed ? 0 : S.ded;
+    total += c.val; margin += m;
     fee += netIt.fee;
     rows.push({k:"인터넷", n:esc(netIt.name),
       d:`${won(netIt.comm)}${netIt.noDed?"":" − "+won(S.ded)} = ${won(c.base)} → ${r.label} 차감`,
@@ -495,7 +494,7 @@ function renderCombo(){
   if(telIt){
     const c = telCalc(telIt.comm);
     const sub = c.val * n, m = (c.base - c.val) * n;
-    total += sub; margin += m; commSum += telIt.comm * n;
+    total += sub; margin += m;
     fee += telIt.fee * n;
     rows.push({k:"전화", n:`${esc(telIt.name)} <b>× ${n}회선</b>`,
       d:`${won(telIt.comm)} × ${telLabel()} 차감 = ${won(c.val)} × ${n}회선`,
@@ -504,7 +503,7 @@ function renderCombo(){
   if(etc > 0){
     const c = calc(etc, r.value);
     const m = c.base - c.val;
-    total += c.val; margin += m; commSum += etc; dedSum += S.ded;
+    total += c.val; margin += m;
     rows.push({k:"직접", n:`수수료 ${won(etc)}`,
       d:`${won(etc)} − ${won(S.ded)} = ${won(c.base)} → ${r.label} 차감`, v:c.val, m});
   }
@@ -515,9 +514,6 @@ function renderCombo(){
   }
   const sub = [];
   if(fee)  sub.push(`월 요금 ₩${won(fee)}`);
-
-  const recon = [`총 수수료 ${won(commSum)}`];
-  if(dedSum) recon.push(`플랫폼 공제 ${won(dedSum)} 제외`);
 
   $("#cOut").innerHTML = rows.map(x=>`
     <div class="l">
@@ -532,7 +528,7 @@ function renderCombo(){
     </div>
     <div class="l mar" data-copy="${won(margin)}" title="클릭하면 복사">
       <span class="k">우리 마진</span>
-      <span class="n"><small>${recon.join(" · ")}</small></span>
+      <span class="n"></span>
       <span class="v">${won(margin)}</span>
     </div>`;
 }
