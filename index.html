@@ -96,13 +96,19 @@
     border-radius:4px;padding:2px 7px;flex:none}
   .sumbox .n{flex:1;font-size:13px;font-weight:600;min-width:0}
   .sumbox .n small{display:block;font-weight:500;color:var(--muted);font-size:11.5px;margin-top:1px}
-  .sumbox .v{font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap}
-  .sumbox .tot{border-bottom:none;background:var(--good-soft);padding:12px;cursor:pointer}
+  .sumbox .v{font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap;text-align:right}
+  .sumbox .v small{display:block;font-weight:600;color:var(--accent);font-size:11.5px;margin-top:1px}
+  .sumbox .l:last-child{border-bottom:none}
+  .sumbox .tot{background:var(--good-soft);padding:12px;cursor:pointer}
   .sumbox .tot .k{background:var(--card);color:var(--good)}
   .sumbox .tot .v{font-size:23px;font-weight:800;color:var(--good)}
+  .sumbox .mar{background:var(--accent-soft);padding:12px;cursor:pointer}
+  .sumbox .mar .k{background:var(--card);color:var(--accent)}
+  .sumbox .mar .v{font-size:20px;font-weight:800;color:var(--accent)}
   .sumbox .empty{padding:18px 12px;text-align:center;color:var(--muted);font-size:12.5px}
   /* 잠금 화면 */
   #app{display:none}
+  #app.on{display:block}
   #lock{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:18px;z-index:200}
   #lock.off{display:none}
   .lockbox{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:26px 24px;width:100%;max-width:360px;text-align:center}
@@ -253,7 +259,6 @@
       <div class="fld"><label>구분</label><select id="iGroup"></select></div>
       <div class="fld"><label>상품명</label><input type="text" id="iName" placeholder="예: 500M + WIFI + IPTV(ALL)"></div>
       <div class="fld"><label>요금 (VAT포함)</label><input type="number" id="iFee" step="100"></div>
-      <div class="fld"><label>경품 가이드</label><input type="number" id="iGift" step="10000"></div>
       <div class="fld"><label>수수료 (VAT별도)</label><input type="number" id="iComm" step="10000"></div>
       <label class="chk"><input type="checkbox" id="iNoDed"> 공제액 미적용 (수수료 전액에서 % 차감)</label>
     </div>
@@ -397,12 +402,11 @@ function renderTable(){
   const q = ($("#search").value||"").trim().toLowerCase();
   const compare = S.mode === "compare";
   const cols = compare ? S.rates : [activeRate()];
-  const span = 5 + cols.length + 1;
+  const span = 4 + cols.length + 1;
 
   let h = `<thead><tr>
     <th>상품</th>
     <th>요금(VAT포함)</th>
-    <th>경품 가이드</th>
     <th>수수료(VAT별도)</th>
     <th>공제 후</th>
     ${cols.map(r=>`<th style="color:var(--good)">딸깍 ${r.label}</th>`).join("")}
@@ -432,7 +436,6 @@ function renderTable(){
       h += `<tr class="item">
         <td class="name">${esc(it.name)}${(!tel && it.noDed)?' <span class="tag">공제X</span>':''}</td>
         <td class="num muted">₩${won(it.fee)}</td>
-        <td class="num ${it.gift ? "strike" : "muted"}">${it.gift ? "₩"+won(it.gift) : "-"}</td>
         <td class="num" style="color:var(--danger);font-weight:700">${won(it.comm)}</td>
         <td class="num muted">${tel ? "-" : won(c0.base)}</td>
         ${dkCells}
@@ -476,29 +479,34 @@ function renderCombo(){
   const etc = Number($("#cEtc").value)||0;
   $("#cLineWrap").style.display = telIt ? "" : "none";
 
-  let total = 0, fee = 0, gift = 0;
+  let total = 0, margin = 0, dedSum = 0, commSum = 0, fee = 0;
   const rows = [];
 
   if(netIt){
     const c = calc(netIt.comm, r.value, netIt.noDed);
-    total += c.val; fee += netIt.fee; gift += netIt.gift;
+    const m = c.base - c.val;
+    total += c.val; margin += m; commSum += netIt.comm;
+    dedSum += netIt.noDed ? 0 : S.ded;
+    fee += netIt.fee;
     rows.push({k:"인터넷", n:esc(netIt.name),
       d:`${won(netIt.comm)}${netIt.noDed?"":" − "+won(S.ded)} = ${won(c.base)} → ${r.label} 차감`,
-      v:c.val});
+      v:c.val, m});
   }
   if(telIt){
     const c = telCalc(telIt.comm);
-    const sub = c.val * n;
-    total += sub; fee += telIt.fee * n; gift += telIt.gift * n;
+    const sub = c.val * n, m = (c.base - c.val) * n;
+    total += sub; margin += m; commSum += telIt.comm * n;
+    fee += telIt.fee * n;
     rows.push({k:"전화", n:`${esc(telIt.name)} <b>× ${n}회선</b>`,
       d:`${won(telIt.comm)} × ${telLabel()} 차감 = ${won(c.val)} × ${n}회선`,
-      v:sub});
+      v:sub, m});
   }
   if(etc > 0){
     const c = calc(etc, r.value);
-    total += c.val;
+    const m = c.base - c.val;
+    total += c.val; margin += m; commSum += etc; dedSum += S.ded;
     rows.push({k:"직접", n:`수수료 ${won(etc)}`,
-      d:`${won(etc)} − ${won(S.ded)} = ${won(c.base)} → ${r.label} 차감`, v:c.val});
+      d:`${won(etc)} − ${won(S.ded)} = ${won(c.base)} → ${r.label} 차감`, v:c.val, m});
   }
 
   if(!rows.length){
@@ -507,18 +515,25 @@ function renderCombo(){
   }
   const sub = [];
   if(fee)  sub.push(`월 요금 ₩${won(fee)}`);
-  if(gift) sub.push(`경품 ₩${won(gift)}`);
+
+  const recon = [`총 수수료 ${won(commSum)}`];
+  if(dedSum) recon.push(`플랫폼 공제 ${won(dedSum)} 제외`);
 
   $("#cOut").innerHTML = rows.map(x=>`
     <div class="l">
       <span class="k">${x.k}</span>
       <span class="n">${x.n}<small>${x.d}</small></span>
-      <span class="v">${won(x.v)}</span>
+      <span class="v">${won(x.v)}<small>마진 ${won(x.m)}</small></span>
     </div>`).join("") + `
     <div class="l tot" data-copy="${won(total)}" title="클릭하면 복사">
       <span class="k">딸깍 합계</span>
       <span class="n"><small>${sub.join(" · ") || "&nbsp;"}</small></span>
       <span class="v">${won(total)}</span>
+    </div>
+    <div class="l mar" data-copy="${won(margin)}" title="클릭하면 복사">
+      <span class="k">우리 마진</span>
+      <span class="n"><small>${recon.join(" · ")}</small></span>
+      <span class="v">${won(margin)}</span>
     </div>`;
 }
 
@@ -547,7 +562,6 @@ function openItem(gid, iid){
   const it = iid && g ? g.items.find(x=>x.id===iid) : null;
   $("#iName").value = it ? it.name : "";
   $("#iFee").value  = it ? it.fee  : "";
-  $("#iGift").value = it ? it.gift : "";
   $("#iComm").value = it ? it.comm : "";
   $("#iNoDed").checked = it ? !!it.noDed : false;
   open("#mItem");
@@ -559,7 +573,6 @@ $("#iSave").onclick = ()=>{
   const data = {
     name,
     fee:  Number($("#iFee").value)  || 0,
-    gift: Number($("#iGift").value) || 0,
     comm: Number($("#iComm").value) || 0,
     noDed: $("#iNoDed").checked
   };
@@ -712,7 +725,7 @@ $("#fileIn").onchange = e=>{
 /* ---------- 부팅 / 잠금 해제 ---------- */
 function showApp(){
   $("#lock").classList.add("off");
-  $("#app").style.display = "";
+  $("#app").classList.add("on");
   render();
 }
 function lockErr(m){ $("#lockErr").textContent = m || ""; }
