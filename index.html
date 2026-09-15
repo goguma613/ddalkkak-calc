@@ -176,6 +176,7 @@
             <option value="10">10원 절사</option>
             <option value="100">100원 절사</option>
             <option value="1000">1,000원 절사</option>
+            <option value="10000">10,000원 절사 (만원 단위)</option>
           </select>
         </div>
         <div class="fld">
@@ -312,7 +313,7 @@ const $ = s => document.querySelector(s);
 const won = n => (Math.round(n)).toLocaleString("ko-KR");
 
 /* ---------- 기본 데이터 ---------- */
-const VER = 3;
+const VER = 4;
 const ORIG_KEY = KEY + "_orig";
 
 /* ---------- 상태 ---------- */
@@ -322,6 +323,7 @@ function normalize(s){
   if(typeof s.ded     !== "number") s.ded = 55000;
   if(typeof s.telRate !== "number") s.telRate = 50;
   if(typeof s.unit    !== "number") s.unit = 1;
+  if((s.v || 1) < 4) s.unit = 10000;   // 딸깍 금액 만원 단위 절사, 절사분은 마진으로
   if(!s.mode) s.mode = "compare";
   s.groups.forEach(g => { if((g.name||"").trim() === "전화" && g.tel === undefined) g.tel = true; });
   if(!s.activeRate || !s.rates.some(r => r.id === s.activeRate))
