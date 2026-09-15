@@ -1,0 +1,751 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<title>딸깍 계산기</title>
+<style>
+  :root{
+    --bg:#f4f5f7; --card:#ffffff; --line:#e3e6ea; --line2:#eef0f3;
+    --text:#1b1f24; --muted:#6b7480; --accent:#2f5bd8; --accent-soft:#eaf0ff;
+    --good:#0a7c50; --good-soft:#e7f6ef; --warn:#b4530a; --danger:#c0392b;
+    --head:#fdf6e6; --group:#f0f2f5;
+    --radius:10px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#14171c; --card:#1c2026; --line:#2c323a; --line2:#242930;
+      --text:#e8eaed; --muted:#9aa3ae; --accent:#7ea0ff; --accent-soft:#232b3d;
+      --good:#4ade9a; --good-soft:#182b23; --warn:#e0a35b; --danger:#ef7a6d;
+      --head:#2a2617; --group:#232830;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font-family:"Pretendard","Malgun Gothic","Apple SD Gothic Neo",system-ui,-apple-system,Segoe UI,sans-serif;
+    font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1280px;margin:0 auto;padding:20px 16px 80px}
+  h1{font-size:20px;margin:0 0 2px;letter-spacing:-.3px}
+  .sub{color:var(--muted);font-size:12.5px;margin-bottom:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:14px}
+  .card-h{padding:11px 14px;border-bottom:1px solid var(--line2);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .card-h h2{font-size:13px;margin:0;font-weight:700;letter-spacing:-.2px}
+  .card-b{padding:14px}
+  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+  .fld{display:flex;flex-direction:column;gap:5px}
+  .fld label{font-size:11.5px;color:var(--muted);font-weight:600}
+  input,select,button{font-family:inherit;font-size:13.5px;color:var(--text)}
+  input[type=text],input[type=number],select{
+    background:var(--card);border:1px solid var(--line);border-radius:7px;padding:7px 9px;min-width:110px;outline:none}
+  input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  button{cursor:pointer;border-radius:7px;border:1px solid var(--line);background:var(--card);padding:7px 11px;font-weight:600}
+  button:hover{border-color:var(--accent);color:var(--accent)}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.primary:hover{opacity:.88;color:#fff}
+  button.ghost{border-color:transparent;background:transparent;color:var(--muted);padding:4px 7px;font-size:12px}
+  button.ghost:hover{background:var(--line2);color:var(--accent)}
+  button.danger:hover{border-color:var(--danger);color:var(--danger)}
+  .spacer{flex:1}
+  .pill{font-size:11px;padding:2px 7px;border-radius:99px;background:var(--accent-soft);color:var(--accent);font-weight:700}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:8px 10px;border-bottom:1px solid var(--line2);text-align:right;white-space:nowrap}
+  th{background:var(--head);font-size:11.5px;color:var(--muted);font-weight:700;position:sticky;top:0;z-index:2;
+     border-bottom:1px solid var(--line)}
+  th:first-child,td:first-child{text-align:left}
+  td.name{text-align:left;font-weight:600;white-space:normal;min-width:230px}
+  tr.grp td{background:var(--group);font-weight:800;font-size:12.5px;text-align:left;letter-spacing:-.2px;
+    border-bottom:1px solid var(--line);position:sticky;top:31px;z-index:1}
+  tr.item:hover td{background:var(--accent-soft)}
+  .num{font-variant-numeric:tabular-nums}
+  .muted{color:var(--muted)}
+  .strike{color:var(--muted);text-decoration:line-through;text-decoration-thickness:1px}
+  .dk{font-weight:800;color:var(--good);background:var(--good-soft);cursor:pointer;border-radius:5px}
+  .dk.active{outline:2px solid var(--good);outline-offset:-2px}
+  .acts{opacity:0;transition:.12s;white-space:nowrap}
+  tr.item:hover .acts{opacity:1}
+  .tbl-scroll{overflow-x:auto;max-height:70vh;overflow-y:auto}
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:16px;z-index:50}
+  .modal.on{display:flex}
+  .modal-box{background:var(--card);border:1px solid var(--line);border-radius:12px;width:100%;max-width:460px;max-height:86vh;overflow:auto}
+  .modal-box h3{margin:0;padding:14px 16px;border-bottom:1px solid var(--line2);font-size:14px}
+  .modal-b{padding:16px;display:flex;flex-direction:column;gap:12px}
+  .modal-f{padding:12px 16px;border-top:1px solid var(--line2);display:flex;gap:8px;justify-content:flex-end}
+  .modal-b .fld input,.modal-b .fld select{width:100%}
+  .rate-row{display:flex;gap:8px;align-items:center}
+  .rate-row input{width:100%}
+  .rate-row input.w{max-width:90px}
+  .hint{font-size:11.5px;color:var(--muted)}
+  .formula{font-size:12.5px;color:var(--muted);background:var(--group);border-radius:7px;padding:8px 11px;display:inline-block}
+  .formula b{color:var(--text)}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;
+    background:var(--text);color:var(--bg);padding:9px 16px;border-radius:99px;font-size:13px;font-weight:600;
+    pointer-events:none;transition:.2s;z-index:99}
+  .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+  .qr{font-size:22px;font-weight:800;color:var(--good);font-variant-numeric:tabular-nums}
+  .tag{font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px;background:var(--head);color:var(--warn);
+    border:1px solid var(--line);vertical-align:1px}
+  .chk{display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer;color:var(--text)}
+  .chk input{width:auto;min-width:auto;accent-color:var(--accent)}
+  .stepper{display:flex;align-items:center;gap:4px}
+  .stepper button{font-size:15px;line-height:1;padding:6px 11px;font-weight:700}
+  .stepper input{width:58px;min-width:58px;text-align:center;font-weight:700}
+  .sumbox{margin-top:14px;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .sumbox .l{display:flex;gap:10px;align-items:center;padding:9px 12px;border-bottom:1px solid var(--line2)}
+  .sumbox .k{font-size:11px;font-weight:700;color:var(--muted);background:var(--group);
+    border-radius:4px;padding:2px 7px;flex:none}
+  .sumbox .n{flex:1;font-size:13px;font-weight:600;min-width:0}
+  .sumbox .n small{display:block;font-weight:500;color:var(--muted);font-size:11.5px;margin-top:1px}
+  .sumbox .v{font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap}
+  .sumbox .tot{border-bottom:none;background:var(--good-soft);padding:12px;cursor:pointer}
+  .sumbox .tot .k{background:var(--card);color:var(--good)}
+  .sumbox .tot .v{font-size:23px;font-weight:800;color:var(--good)}
+  .sumbox .empty{padding:18px 12px;text-align:center;color:var(--muted);font-size:12.5px}
+  /* 잠금 화면 */
+  #app{display:none}
+  #lock{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:18px;z-index:200}
+  #lock.off{display:none}
+  .lockbox{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:26px 24px;width:100%;max-width:360px;text-align:center}
+  .lockbox .ico{font-size:30px;line-height:1}
+  .lockbox h2{font-size:17px;margin:12px 0 4px}
+  .lockbox p{font-size:12.5px;color:var(--muted);margin:0 0 18px}
+  .lockbox input{width:100%;text-align:center;font-size:15px;padding:11px;letter-spacing:1px}
+  .lockbox button{width:100%;margin-top:9px;padding:11px;background:var(--accent);border-color:var(--accent);color:#fff}
+  .lockbox .err{color:var(--danger);font-size:12.5px;font-weight:700;margin-top:11px;min-height:18px}
+  @media (max-width:700px){
+    td.name{min-width:180px;font-size:12.5px}
+    th,td{padding:7px 8px;font-size:12.5px}
+  }
+</style>
+</head>
+<body>
+
+<div id="lock">
+  <div class="lockbox">
+    <div class="ico">🔒</div>
+    <h2>딸깍 계산기</h2>
+    <p>비밀번호를 입력하세요</p>
+    <input type="password" id="pw" autocomplete="current-password" placeholder="••••••••">
+    <button id="unlock">잠금 해제</button>
+    <div class="err" id="lockErr"></div>
+  </div>
+</div>
+
+<div class="wrap" id="app">
+  <h1>딸깍 계산기 <span class="pill">SKB 든든인터넷</span></h1>
+  <div class="sub">수수료에서 공제액을 뺀 뒤, 선택한 비율만큼 차감한 금액이 <b>딸깍</b>입니다.</div>
+
+  <!-- 설정 -->
+  <div class="card">
+    <div class="card-h">
+      <h2>계산 설정</h2>
+      <div class="spacer"></div>
+      <div class="formula">
+        <div>인터넷 = ( 수수료 − <b id="fDed">55,000</b> ) × ( 1 − <b id="fRate">20%</b> )</div>
+        <div>전화 &nbsp;&nbsp;&nbsp;= 수수료 × ( 1 − <b id="fTel">50%</b> ) <span style="opacity:.7">· 공제 없음</span></div>
+      </div>
+    </div>
+    <div class="card-b">
+      <div class="row">
+        <div class="fld">
+          <label>차감 비율</label>
+          <select id="rateSel"></select>
+        </div>
+        <div class="fld">
+          <label>&nbsp;</label>
+          <button id="btnRates">비율 관리</button>
+        </div>
+        <div class="fld">
+          <label>인터넷 공제액</label>
+          <input type="number" id="ded" step="1000" value="55000">
+        </div>
+        <div class="fld">
+          <label>전화 차감율 (%)</label>
+          <input type="number" id="telRate" step="1" min="0" max="100" value="50">
+        </div>
+        <div class="fld">
+          <label>절사 단위</label>
+          <select id="unit">
+            <option value="1">1원 (절사 없음)</option>
+            <option value="10">10원 절사</option>
+            <option value="100">100원 절사</option>
+            <option value="1000">1,000원 절사</option>
+          </select>
+        </div>
+        <div class="fld">
+          <label>표시 방식</label>
+          <select id="mode">
+            <option value="compare">전 비율 비교</option>
+            <option value="single">선택 비율만</option>
+          </select>
+        </div>
+        <div class="spacer"></div>
+        <div class="fld">
+          <label>&nbsp;</label>
+          <div style="display:flex;gap:6px">
+            <button id="btnExport">내보내기</button>
+            <button id="btnImport">가져오기</button>
+            <button id="btnReset" class="danger">원본 복구</button>
+            <button id="btnLock" class="danger">🔒 잠금</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 묶음 계산 -->
+  <div class="card">
+    <div class="card-h">
+      <h2>묶음 계산</h2>
+      <span class="hint">인터넷 + 전화를 같이 하는 건</span>
+      <div class="spacer"></div>
+      <button id="cClear" class="ghost">초기화</button>
+    </div>
+    <div class="card-b">
+      <div class="row">
+        <div class="fld" style="flex:2;min-width:250px">
+          <label>인터넷 상품</label>
+          <select id="cNet" style="width:100%"></select>
+        </div>
+        <div class="fld" style="flex:1.4;min-width:210px">
+          <label>전화 상품</label>
+          <select id="cTel" style="width:100%"></select>
+        </div>
+        <div class="fld" id="cLineWrap" style="display:none">
+          <label>회선 수</label>
+          <div class="stepper">
+            <button type="button" id="cMinus">−</button>
+            <input type="number" id="cLine" min="1" max="99" value="1">
+            <button type="button" id="cPlus">+</button>
+          </div>
+        </div>
+        <div class="fld">
+          <label>직접 입력 수수료</label>
+          <input type="number" id="cEtc" step="10000" placeholder="선택">
+        </div>
+      </div>
+      <div class="sumbox" id="cOut"></div>
+    </div>
+  </div>
+
+  <!-- 상품표 -->
+  <div class="card">
+    <div class="card-h">
+      <h2>상품 목록</h2>
+      <input type="text" id="search" placeholder="상품 검색…" style="min-width:160px">
+      <div class="spacer"></div>
+      <button id="btnAddItem" class="primary">+ 상품 추가</button>
+      <button id="btnAddGroup">+ 구분 추가</button>
+    </div>
+    <div class="tbl-scroll">
+      <table id="tbl"></table>
+    </div>
+  </div>
+
+  <div class="hint">데이터는 이 브라우저에 자동 저장됩니다. 값을 누르면 클립보드로 복사돼요.</div>
+</div>
+
+<!-- 상품 모달 -->
+<div class="modal" id="mItem">
+  <div class="modal-box">
+    <h3 id="mItemTitle">상품 추가</h3>
+    <div class="modal-b">
+      <div class="fld"><label>구분</label><select id="iGroup"></select></div>
+      <div class="fld"><label>상품명</label><input type="text" id="iName" placeholder="예: 500M + WIFI + IPTV(ALL)"></div>
+      <div class="fld"><label>요금 (VAT포함)</label><input type="number" id="iFee" step="100"></div>
+      <div class="fld"><label>경품 가이드</label><input type="number" id="iGift" step="10000"></div>
+      <div class="fld"><label>수수료 (VAT별도)</label><input type="number" id="iComm" step="10000"></div>
+      <label class="chk"><input type="checkbox" id="iNoDed"> 공제액 미적용 (수수료 전액에서 % 차감)</label>
+    </div>
+    <div class="modal-f">
+      <button data-close>취소</button>
+      <button class="primary" id="iSave">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 비율 모달 -->
+<div class="modal" id="mRate">
+  <div class="modal-box">
+    <h3>차감 비율 관리</h3>
+    <div class="modal-b">
+      <div id="rateList" style="display:flex;flex-direction:column;gap:8px"></div>
+      <button id="rAdd">+ 비율 추가</button>
+      <div class="hint">이름은 표 머리글에, 값(%)은 계산에 쓰입니다.</div>
+    </div>
+    <div class="modal-f">
+      <button data-close>취소</button>
+      <button class="primary" id="rSave">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 구분 모달 -->
+<div class="modal" id="mGroup">
+  <div class="modal-box">
+    <h3 id="mGroupTitle">구분 추가</h3>
+    <div class="modal-b">
+      <div class="fld"><label>구분 이름</label><input type="text" id="gName" placeholder="예: (SKB) 500M"></div>
+      <label class="chk"><input type="checkbox" id="gTel"> 전화 방식 적용 (공제 없이 고정 % 차감)</label>
+    </div>
+    <div class="modal-f">
+      <button data-close>취소</button>
+      <button class="primary" id="gSave">저장</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="fileIn" accept="application/json" style="display:none">
+<div class="toast" id="toast"></div>
+
+<script src="data.js" onerror="window.ENC_MISSING=1"></script>
+<script>
+"use strict";
+const KEY = "ddalkkak_tool_v1";
+const uid = () => Math.random().toString(36).slice(2, 9);
+const $ = s => document.querySelector(s);
+const won = n => (Math.round(n)).toLocaleString("ko-KR");
+
+/* ---------- 기본 데이터 ---------- */
+const VER = 3;
+const ORIG_KEY = KEY + "_orig";
+
+/* ---------- 상태 ---------- */
+let S = null;
+function normalize(s){
+  if(!s || !s.groups || !s.rates) return null;
+  if(typeof s.ded     !== "number") s.ded = 55000;
+  if(typeof s.telRate !== "number") s.telRate = 50;
+  if(typeof s.unit    !== "number") s.unit = 1;
+  if(!s.mode) s.mode = "compare";
+  s.groups.forEach(g => { if((g.name||"").trim() === "전화" && g.tel === undefined) g.tel = true; });
+  if(!s.activeRate || !s.rates.some(r => r.id === s.activeRate))
+    s.activeRate = s.rates[0] ? s.rates[0].id : "";
+  s.v = VER;
+  return s;
+}
+const save = () => { try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} };
+
+/* ---------- 복호화 ---------- */
+const ITER = 600000;
+async function deriveKey(pw, salt){
+  const km = await crypto.subtle.importKey("raw", new TextEncoder().encode(pw), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey({name:"PBKDF2", salt, iterations:ITER, hash:"SHA-256"},
+    km, {name:"AES-GCM", length:256}, false, ["encrypt","decrypt"]);
+}
+async function decryptJSON(b64, pw){
+  const raw  = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  const key  = await deriveKey(pw, raw.slice(0, 16));
+  const pt   = await crypto.subtle.decrypt({name:"AES-GCM", iv: raw.slice(16, 28)}, key, raw.slice(28));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+
+/* ---------- 계산 ---------- */
+function calc(comm, ratePct, noDed){
+  const base = (Number(comm)||0) - (noDed ? 0 : (Number(S.ded)||0));
+  const raw  = base * (1 - (Number(ratePct)||0)/100);
+  const u    = Number(S.unit)||1;
+  return { base, raw, val: Math.floor(raw/u)*u };
+}
+/* 전화: 공제 없이 고정 % 차감 */
+const isTel = g => !!g && (g.tel === true || (g.name||"").trim() === "전화");
+function telCalc(comm){
+  const base = Number(comm)||0;
+  const raw  = base * (1 - (Number(S.telRate)||0)/100);
+  const u    = Number(S.unit)||1;
+  return { base, raw, val: Math.floor(raw/u)*u };
+}
+const telLabel = () => (Number(S.telRate)||0) + "%";
+const activeRate = () => S.rates.find(r => r.id===S.activeRate) || S.rates[0] || {label:"0%", value:0};
+
+/* ---------- 토스트 / 복사 ---------- */
+let tTimer;
+function toast(msg){
+  const t = $("#toast"); t.textContent = msg; t.classList.add("on");
+  clearTimeout(tTimer); tTimer = setTimeout(()=>t.classList.remove("on"), 1400);
+}
+function copy(text){
+  const done = () => toast(text + " 복사됨");
+  if(navigator.clipboard && window.isSecureContext){
+    navigator.clipboard.writeText(text).then(done, ()=>fallback(text, done));
+  } else fallback(text, done);
+}
+function fallback(text, done){
+  const ta = document.createElement("textarea");
+  ta.value = text; ta.style.position="fixed"; ta.style.opacity="0";
+  document.body.appendChild(ta); ta.select();
+  try{ document.execCommand("copy"); done(); }catch(e){ toast("복사 실패"); }
+  document.body.removeChild(ta);
+}
+
+/* ---------- 렌더 ---------- */
+function renderControls(){
+  const sel = $("#rateSel");
+  sel.innerHTML = S.rates.map(r=>`<option value="${r.id}">${r.label} 차감</option>`).join("");
+  if(!S.rates.some(r=>r.id===S.activeRate)) S.activeRate = S.rates[0] ? S.rates[0].id : "";
+  sel.value = S.activeRate;
+  $("#ded").value  = S.ded;
+  $("#telRate").value = S.telRate;
+  $("#unit").value = S.unit;
+  $("#mode").value = S.mode;
+  $("#fDed").textContent  = won(S.ded);
+  $("#fRate").textContent = activeRate().label;
+  $("#fTel").textContent  = telLabel();
+}
+
+function renderTable(){
+  const q = ($("#search").value||"").trim().toLowerCase();
+  const compare = S.mode === "compare";
+  const cols = compare ? S.rates : [activeRate()];
+  const span = 5 + cols.length + 1;
+
+  let h = `<thead><tr>
+    <th>상품</th>
+    <th>요금(VAT포함)</th>
+    <th>경품 가이드</th>
+    <th>수수료(VAT별도)</th>
+    <th>공제 후</th>
+    ${cols.map(r=>`<th style="color:var(--good)">딸깍 ${r.label}</th>`).join("")}
+    <th></th></tr></thead><tbody>`;
+
+  let shown = 0;
+  S.groups.forEach(g=>{
+    const items = g.items.filter(it => !q || it.name.toLowerCase().includes(q) || g.name.toLowerCase().includes(q));
+    if(q && !items.length) return;
+    h += `<tr class="grp"><td colspan="${span}">${esc(g.name)}
+            <button class="ghost" data-act="addItem" data-g="${g.id}">+ 상품</button>
+            <button class="ghost" data-act="editGroup" data-g="${g.id}">이름</button>
+            <button class="ghost danger" data-act="delGroup" data-g="${g.id}">삭제</button>
+          </td></tr>`;
+    const tel = isTel(g);
+    items.forEach(it=>{
+      shown++;
+      const c0 = tel ? telCalc(it.comm) : calc(it.comm, 0, it.noDed);
+      const dkCells = tel
+        ? `<td class="num dk active" colspan="${cols.length}" data-copy="${won(telCalc(it.comm).val)}">
+             ${won(telCalc(it.comm).val)} <span class="tag">${telLabel()} 차감</span></td>`
+        : cols.map(r=>{
+            const c = calc(it.comm, r.value, it.noDed);
+            const act = (!compare || r.id===S.activeRate) ? " active" : "";
+            return `<td class="num dk${act}" data-copy="${won(c.val)}">${won(c.val)}</td>`;
+          }).join("");
+      h += `<tr class="item">
+        <td class="name">${esc(it.name)}${(!tel && it.noDed)?' <span class="tag">공제X</span>':''}</td>
+        <td class="num muted">₩${won(it.fee)}</td>
+        <td class="num ${it.gift ? "strike" : "muted"}">${it.gift ? "₩"+won(it.gift) : "-"}</td>
+        <td class="num" style="color:var(--danger);font-weight:700">${won(it.comm)}</td>
+        <td class="num muted">${tel ? "-" : won(c0.base)}</td>
+        ${dkCells}
+        <td class="acts">
+          <button class="ghost" data-act="editItem" data-g="${g.id}" data-i="${it.id}">수정</button>
+          <button class="ghost danger" data-act="delItem" data-g="${g.id}" data-i="${it.id}">삭제</button>
+        </td></tr>`;
+    });
+  });
+  if(!shown) h += `<tr><td colspan="${span}" class="muted" style="padding:28px;text-align:center">표시할 상품이 없습니다.</td></tr>`;
+  $("#tbl").innerHTML = h + "</tbody>";
+}
+
+/* ---------- 묶음 계산 ---------- */
+function findItem(id){
+  for(const g of S.groups){ const it = g.items.find(x=>x.id===id); if(it) return it; }
+  return null;
+}
+function buildCombo(){
+  const net = $("#cNet"), tel = $("#cTel");
+  const keepN = net.value, keepT = tel.value;
+  net.innerHTML = `<option value="">선택 안 함</option>` +
+    S.groups.filter(g=>!isTel(g)).map(g=>
+      `<optgroup label="${esc(g.name)}">` +
+      g.items.map(it=>`<option value="${it.id}">${esc(it.name)}</option>`).join("") +
+      `</optgroup>`).join("");
+  tel.innerHTML = `<option value="">선택 안 함</option>` +
+    S.groups.filter(isTel).flatMap(g=>g.items)
+      .map(it=>`<option value="${it.id}">${esc(it.name)}</option>`).join("");
+  if(findItem(keepN)) net.value = keepN;
+  if(findItem(keepT)) tel.value = keepT;
+}
+function lineCount(){
+  return Math.max(1, Math.min(99, Math.floor(Number($("#cLine").value)||1)));
+}
+function renderCombo(){
+  const r = activeRate();
+  const netIt = findItem($("#cNet").value);
+  const telIt = findItem($("#cTel").value);
+  const n = lineCount();
+  const etc = Number($("#cEtc").value)||0;
+  $("#cLineWrap").style.display = telIt ? "" : "none";
+
+  let total = 0, fee = 0, gift = 0;
+  const rows = [];
+
+  if(netIt){
+    const c = calc(netIt.comm, r.value, netIt.noDed);
+    total += c.val; fee += netIt.fee; gift += netIt.gift;
+    rows.push({k:"인터넷", n:esc(netIt.name),
+      d:`${won(netIt.comm)}${netIt.noDed?"":" − "+won(S.ded)} = ${won(c.base)} → ${r.label} 차감`,
+      v:c.val});
+  }
+  if(telIt){
+    const c = telCalc(telIt.comm);
+    const sub = c.val * n;
+    total += sub; fee += telIt.fee * n; gift += telIt.gift * n;
+    rows.push({k:"전화", n:`${esc(telIt.name)} <b>× ${n}회선</b>`,
+      d:`${won(telIt.comm)} × ${telLabel()} 차감 = ${won(c.val)} × ${n}회선`,
+      v:sub});
+  }
+  if(etc > 0){
+    const c = calc(etc, r.value);
+    total += c.val;
+    rows.push({k:"직접", n:`수수료 ${won(etc)}`,
+      d:`${won(etc)} − ${won(S.ded)} = ${won(c.base)} → ${r.label} 차감`, v:c.val});
+  }
+
+  if(!rows.length){
+    $("#cOut").innerHTML = `<div class="empty">인터넷 / 전화 상품을 선택하면 딸깍 합계가 계산됩니다.</div>`;
+    return;
+  }
+  const sub = [];
+  if(fee)  sub.push(`월 요금 ₩${won(fee)}`);
+  if(gift) sub.push(`경품 ₩${won(gift)}`);
+
+  $("#cOut").innerHTML = rows.map(x=>`
+    <div class="l">
+      <span class="k">${x.k}</span>
+      <span class="n">${x.n}<small>${x.d}</small></span>
+      <span class="v">${won(x.v)}</span>
+    </div>`).join("") + `
+    <div class="l tot" data-copy="${won(total)}" title="클릭하면 복사">
+      <span class="k">딸깍 합계</span>
+      <span class="n"><small>${sub.join(" · ") || "&nbsp;"}</small></span>
+      <span class="v">${won(total)}</span>
+    </div>`;
+}
+
+const esc = s => String(s).replace(/[&<>"]/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+function render(){ renderControls(); renderTable(); buildCombo(); renderCombo(); save(); }
+
+/* ---------- 모달 ---------- */
+const open  = id => $(id).classList.add("on");
+const close = id => $(id).classList.remove("on");
+document.addEventListener("click", e=>{
+  if(e.target.matches("[data-close]")) e.target.closest(".modal").classList.remove("on");
+  if(e.target.classList.contains("modal")) e.target.classList.remove("on");
+});
+document.addEventListener("keydown", e=>{
+  if(e.key==="Escape") document.querySelectorAll(".modal.on").forEach(m=>m.classList.remove("on"));
+});
+
+/* 상품 추가/수정 */
+let editing = null; // {gid, iid} | null
+function openItem(gid, iid){
+  editing = iid ? {gid, iid} : null;
+  $("#mItemTitle").textContent = iid ? "상품 수정" : "상품 추가";
+  $("#iGroup").innerHTML = S.groups.map(g=>`<option value="${g.id}">${esc(g.name)}</option>`).join("");
+  const g = S.groups.find(x=>x.id===gid) || S.groups[0];
+  $("#iGroup").value = g ? g.id : "";
+  const it = iid && g ? g.items.find(x=>x.id===iid) : null;
+  $("#iName").value = it ? it.name : "";
+  $("#iFee").value  = it ? it.fee  : "";
+  $("#iGift").value = it ? it.gift : "";
+  $("#iComm").value = it ? it.comm : "";
+  $("#iNoDed").checked = it ? !!it.noDed : false;
+  open("#mItem");
+  setTimeout(()=>$("#iName").focus(), 30);
+}
+$("#iSave").onclick = ()=>{
+  const name = $("#iName").value.trim();
+  if(!name) return toast("상품명을 입력하세요");
+  const data = {
+    name,
+    fee:  Number($("#iFee").value)  || 0,
+    gift: Number($("#iGift").value) || 0,
+    comm: Number($("#iComm").value) || 0,
+    noDed: $("#iNoDed").checked
+  };
+  const tgt = $("#iGroup").value;
+  if(editing){
+    const og = S.groups.find(g=>g.id===editing.gid);
+    const it = og.items.find(x=>x.id===editing.iid);
+    Object.assign(it, data);
+    if(tgt !== editing.gid){
+      og.items = og.items.filter(x=>x.id!==editing.iid);
+      S.groups.find(g=>g.id===tgt).items.push(it);
+    }
+  } else {
+    S.groups.find(g=>g.id===tgt).items.push(Object.assign({id:uid()}, data));
+  }
+  close("#mItem"); render(); toast("저장됐습니다");
+};
+
+/* 구분 추가/수정 */
+let gEdit = null;
+function openGroup(gid){
+  gEdit = gid || null;
+  $("#mGroupTitle").textContent = gid ? "구분 이름 수정" : "구분 추가";
+  const g = gid ? S.groups.find(x=>x.id===gid) : null;
+  $("#gName").value = g ? g.name : "";
+  $("#gTel").checked = g ? isTel(g) : false;
+  open("#mGroup");
+  setTimeout(()=>$("#gName").focus(), 30);
+}
+$("#gSave").onclick = ()=>{
+  const n = $("#gName").value.trim();
+  if(!n) return toast("이름을 입력하세요");
+  const t = $("#gTel").checked;
+  if(gEdit){ const g = S.groups.find(g=>g.id===gEdit); g.name = n; g.tel = t; }
+  else S.groups.push({id:uid(), name:n, tel:t, items:[]});
+  close("#mGroup"); render();
+};
+
+/* 비율 관리 */
+function openRates(){
+  drawRates(S.rates.map(r=>Object.assign({}, r)));
+  open("#mRate");
+}
+function drawRates(list){
+  $("#rateList").dataset.json = JSON.stringify(list);
+  $("#rateList").innerHTML = list.map((r,i)=>`
+    <div class="rate-row">
+      <input type="text" value="${esc(r.label)}" data-k="label" data-i="${i}" placeholder="표시 이름">
+      <input type="number" class="w" value="${r.value}" data-k="value" data-i="${i}" step="0.1"> %
+      <button class="ghost danger" data-r="${i}">삭제</button>
+    </div>`).join("");
+}
+function readRates(){
+  const list = JSON.parse($("#rateList").dataset.json || "[]");
+  $("#rateList").querySelectorAll("input").forEach(inp=>{
+    const i = +inp.dataset.i;
+    if(!list[i]) return;
+    list[i][inp.dataset.k] = inp.dataset.k==="value" ? (Number(inp.value)||0) : inp.value;
+  });
+  return list;
+}
+$("#rateList").addEventListener("click", e=>{
+  const b = e.target.closest("[data-r]"); if(!b) return;
+  const list = readRates(); list.splice(+b.dataset.r, 1); drawRates(list);
+});
+$("#rAdd").onclick = ()=>{ const l = readRates(); l.push({id:uid(), label:"10%", value:10}); drawRates(l); };
+$("#rSave").onclick = ()=>{
+  const list = readRates().filter(r=>r.label.trim()!=="");
+  if(!list.length) return toast("비율이 최소 1개 필요합니다");
+  list.forEach(r=>{ if(!r.id) r.id = uid(); });
+  S.rates = list;
+  if(!S.rates.some(r=>r.id===S.activeRate)) S.activeRate = S.rates[0].id;
+  close("#mRate"); render(); toast("비율이 저장됐습니다");
+};
+
+/* ---------- 이벤트 ---------- */
+$("#tbl").addEventListener("click", e=>{
+  const cp = e.target.closest("[data-copy]");
+  if(cp){ copy(cp.dataset.copy); return; }
+  const b = e.target.closest("[data-act]"); if(!b) return;
+  const {act, g, i} = b.dataset;
+  if(act==="addItem")   openItem(g, null);
+  if(act==="editItem")  openItem(g, i);
+  if(act==="delItem"){
+    const gr = S.groups.find(x=>x.id===g);
+    const it = gr.items.find(x=>x.id===i);
+    if(confirm(`"${it.name}" 을(를) 삭제할까요?`)){ gr.items = gr.items.filter(x=>x.id!==i); render(); }
+  }
+  if(act==="editGroup") openGroup(g);
+  if(act==="delGroup"){
+    const gr = S.groups.find(x=>x.id===g);
+    if(confirm(`"${gr.name}" 구분과 상품 ${gr.items.length}개를 삭제할까요?`)){
+      S.groups = S.groups.filter(x=>x.id!==g); render();
+    }
+  }
+});
+$("#rateSel").onchange = e => { S.activeRate = e.target.value; render(); };
+$("#ded").oninput      = e => { S.ded  = Number(e.target.value)||0; render(); };
+$("#telRate").oninput  = e => { S.telRate = Math.max(0, Math.min(100, Number(e.target.value)||0)); render(); };
+$("#unit").onchange    = e => { S.unit = Number(e.target.value)||1; render(); };
+$("#mode").onchange    = e => { S.mode = e.target.value; render(); };
+$("#search").oninput   = renderTable;
+$("#cNet").onchange    = renderCombo;
+$("#cTel").onchange    = renderCombo;
+$("#cLine").oninput    = renderCombo;
+$("#cEtc").oninput     = renderCombo;
+$("#cMinus").onclick   = ()=>{ $("#cLine").value = Math.max(1, lineCount()-1); renderCombo(); };
+$("#cPlus").onclick    = ()=>{ $("#cLine").value = Math.min(99, lineCount()+1); renderCombo(); };
+$("#cClear").onclick   = ()=>{ $("#cNet").value=""; $("#cTel").value=""; $("#cLine").value=1; $("#cEtc").value=""; renderCombo(); };
+$("#cOut").addEventListener("click", e=>{
+  const t = e.target.closest("[data-copy]"); if(t) copy(t.dataset.copy);
+});
+$("#btnRates").onclick = openRates;
+$("#btnAddItem").onclick  = ()=> S.groups.length ? openItem(S.groups[0].id, null) : toast("먼저 구분을 추가하세요");
+$("#btnAddGroup").onclick = ()=> openGroup(null);
+$("#btnReset").onclick = ()=>{
+  let orig = null;
+  try{ orig = JSON.parse(localStorage.getItem(ORIG_KEY)); }catch(e){}
+  if(!orig) return toast("되돌릴 원본이 없습니다");
+  if(confirm("직접 수정한 내용을 버리고 배포된 원본 데이터로 되돌릴까요?")){
+    S = normalize(JSON.parse(JSON.stringify(orig))); render(); toast("원본으로 되돌렸습니다");
+  }
+};
+$("#btnLock").onclick = ()=>{
+  if(!confirm("잠그시겠습니까?\n이 기기에 저장된 데이터가 지워지고, 다시 비밀번호를 입력해야 합니다.\n(직접 수정한 내용이 있다면 먼저 «내보내기» 하세요)")) return;
+  try{ localStorage.removeItem(KEY); localStorage.removeItem(ORIG_KEY); }catch(e){}
+  location.reload();
+};
+$("#btnExport").onclick = ()=>{
+  const blob = new Blob([JSON.stringify(S, null, 2)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "ddalkkak-" + new Date().toISOString().slice(0,10) + ".json";
+  a.click(); URL.revokeObjectURL(a.href);
+};
+$("#btnImport").onclick = ()=> $("#fileIn").click();
+$("#fileIn").onchange = e=>{
+  const f = e.target.files[0]; if(!f) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    try{
+      const d = JSON.parse(rd.result);
+      if(!d.groups || !d.rates) throw 0;
+      S = d; render(); toast("불러왔습니다");
+    }catch(err){ toast("파일을 읽을 수 없습니다"); }
+  };
+  rd.readAsText(f); e.target.value = "";
+};
+
+/* ---------- 부팅 / 잠금 해제 ---------- */
+function showApp(){
+  $("#lock").classList.add("off");
+  $("#app").style.display = "";
+  render();
+}
+function lockErr(m){ $("#lockErr").textContent = m || ""; }
+
+async function tryUnlock(){
+  const pw = $("#pw").value;
+  if(!pw) return lockErr("비밀번호를 입력하세요");
+  if(!window.crypto || !crypto.subtle) return lockErr("이 브라우저에서는 복호화를 지원하지 않습니다");
+  $("#unlock").disabled = true; lockErr("확인 중…");
+  try{
+    const data = normalize(await decryptJSON(window.ENC, pw));
+    if(!data) throw new Error("형식 오류");
+    S = data;
+    try{ localStorage.setItem(ORIG_KEY, JSON.stringify(data)); }catch(e){}
+    $("#pw").value = "";
+    showApp();
+  }catch(e){
+    lockErr("비밀번호가 맞지 않습니다");
+  }finally{
+    $("#unlock").disabled = false;
+  }
+}
+$("#unlock").onclick = tryUnlock;
+$("#pw").addEventListener("keydown", e => { if(e.key === "Enter") tryUnlock(); });
+
+(function init(){
+  let saved = null;
+  try{ saved = normalize(JSON.parse(localStorage.getItem(KEY))); }catch(e){}
+  if(saved){ S = saved; showApp(); return; }          // 이 기기에서 이미 잠금 해제함
+  if(window.ENC){ setTimeout(()=>$("#pw").focus(), 60); return; }   // 잠금 화면
+  lockErr("데이터 파일(data.js)을 찾을 수 없습니다");
+  $("#pw").disabled = $("#unlock").disabled = true;
+})();
+</script>
+</body>
+</html>
