@@ -106,6 +106,7 @@
   .sumbox .mar .k{background:var(--card);color:var(--accent)}
   .sumbox .mar .v{font-size:20px;font-weight:800;color:var(--accent)}
   .sumbox .empty{padding:18px 12px;text-align:center;color:var(--muted);font-size:12.5px}
+  td small{display:block;font-weight:600;font-size:11px;color:var(--muted);margin-top:1px}
   .tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
   .tabs button{padding:8px 16px;font-size:13.5px;font-weight:700;border-radius:8px}
   .tabs button.on{background:var(--accent);border-color:var(--accent);color:#fff}
@@ -174,6 +175,10 @@
           <label>전화 차감율 (%)</label>
           <input type="number" id="telRate" step="1" min="0" max="100" value="50">
         </div>
+        <div class="fld" id="fldSimRate">
+          <label>유심 차감율 (%)</label>
+          <input type="number" id="simRate" step="1" min="0" max="100" value="50">
+        </div>
         <div class="fld" id="fldOfficeMargin">
           <label>오피스넷 마진</label>
           <input type="number" id="officeMargin" step="10000" value="50000">
@@ -222,6 +227,10 @@
         <div class="fld" style="flex:2;min-width:250px">
           <label id="lblNet">인터넷 상품</label>
           <select id="cNet" style="width:100%"></select>
+        </div>
+        <div class="fld" id="cSimWrap" style="flex:1.4;min-width:200px">
+          <label>유심 상품</label>
+          <select id="cSim" style="width:100%"></select>
         </div>
         <div class="fld" id="cTvWrap" style="flex:1.4;min-width:200px;display:none">
           <label>BTV</label>
@@ -281,7 +290,8 @@
       <div class="fld"><label>구분</label><select id="iGroup"></select></div>
       <div class="fld"><label>상품명</label><input type="text" id="iName" placeholder="상품명"></div>
       <div class="fld"><label>요금 (VAT포함)</label><input type="number" id="iFee" step="100"></div>
-      <div class="fld"><label>수수료 (VAT별도)</label><input type="number" id="iComm" step="10000"></div>
+      <div class="fld"><label id="lblComm">수수료 (VAT별도)</label><input type="number" id="iComm" step="10000"></div>
+      <div class="fld" id="fldComm2" style="display:none"><label>번들 수수료 (인터넷 결합)</label><input type="number" id="iComm2" step="10000"></div>
       <label class="chk"><input type="checkbox" id="iNoDed"> 공제액 미적용 (수수료 전액에서 % 차감)</label>
     </div>
     <div class="modal-f">
@@ -322,6 +332,7 @@
         <option value="net">인터넷</option>
         <option value="tel">전화 — 공제 없이 고정 % 차감</option>
         <option value="tv">TV — 오피스넷 합계에 그대로 합산</option>
+        <option value="sim">유심 — 공제 없이 고정 % 차감, 단독·번들 구분</option>
       </select></div>
     </div>
     <div class="modal-f">
@@ -359,6 +370,7 @@ function normalize(s){
   if(!s || !s.groups || !s.rates) return null;
   if(typeof s.ded     !== "number") s.ded = 55000;
   if(typeof s.telRate !== "number") s.telRate = 50;
+  if(typeof s.simRate !== "number") s.simRate = 50;
   if(typeof s.officeMargin !== "number") s.officeMargin = 50000;
   s.groups.forEach(g => {
     if(!g.kind) g.kind = (g.tel === true || (g.name||"").trim() === "전화") ? "tel" : "net";
@@ -421,6 +433,16 @@ function telCalc(comm){
   return { base, raw, val: Math.floor(raw/u)*u };
 }
 const telLabel = () => (Number(S.telRate)||0) + "%";
+
+/* 유심: 공제 없이 고정 % 차감. 인터넷과 같이 팔면 번들 수수료(comm2) 적용 */
+function simCalc(comm){
+  const base = Number(comm)||0;
+  const raw  = base * (1 - (Number(S.simRate)||0)/100);
+  const u    = Number(S.unit)||1;
+  return { base, val: Math.floor(raw/u)*u };
+}
+const simLabel = () => (Number(S.simRate)||0) + "%";
+const simComm = (it, bundled) => bundled ? (typeof it.comm2 === "number" ? it.comm2 : it.comm) : it.comm;
 const activeRate = () => S.rates.find(r => r.id===S.activeRate) || S.rates[0] || {label:"0%", value:0};
 
 /* ---------- 토스트 / 복사 ---------- */
@@ -455,6 +477,7 @@ function renderControls(){
   sel.value = S.activeRate;
   $("#ded").value  = S.ded;
   $("#telRate").value = S.telRate;
+  $("#simRate").value = S.simRate;
   $("#officeMargin").value = S.officeMargin;
   $("#unit").value = S.unit;
   $("#mode").value = S.mode;
@@ -464,13 +487,15 @@ function renderControls(){
   $("#fldRateBtn").style.display= office ? "none" : "";
   $("#fldMode").style.display   = office ? "none" : "";
   $("#fldOfficeMargin").style.display = office ? "" : "none";
+  $("#fldSimRate").style.display = office ? "none" : "";
 
   $("#formula").innerHTML = office
     ? `<div>오피스넷 + BTV = 수수료 합계 − <b>${won(S.ded)}</b> − <b>${won(S.officeMargin)}</b></div>
        <div>전화 &nbsp;&nbsp;&nbsp;= 수수료 × ( 1 − <b>${telLabel()}</b> )</div>
        <div style="opacity:.7">공제와 마진은 묶음 전체에 한 번씩만 적용</div>`
     : `<div>인터넷 = ( 수수료 − <b>${won(S.ded)}</b> ) × ( 1 − <b>${activeRate().label}</b> )</div>
-       <div>전화 &nbsp;&nbsp;&nbsp;= 수수료 × ( 1 − <b>${telLabel()}</b> ) <span style="opacity:.7">· 공제 없음</span></div>`;
+       <div>전화 &nbsp;&nbsp;&nbsp;= 수수료 × ( 1 − <b>${telLabel()}</b> ) <span style="opacity:.7">· 공제 없음</span></div>
+       <div>유심 &nbsp;&nbsp;&nbsp;= 수수료 × ( 1 − <b>${simLabel()}</b> ) <span style="opacity:.7">· 인터넷 결합 시 번들 수수료</span></div>`;
 }
 
 function renderTable(){
@@ -510,6 +535,16 @@ function renderTable(){
              <td class="num muted">${won(c.base - c.val)}</td>`
           : `<td class="num dk active" colspan="${cols.length}" data-copy="${won(c.val)}">
                ${won(c.val)} <span class="tag">${telLabel()} 차감</span></td>`;
+      } else if(g.kind === "sim"){
+        const solo = simCalc(it.comm), bun = simCalc(simComm(it, true));
+        const none = !it.comm && !simComm(it, true);
+        mid = office ? "" : `<td class="num muted">-</td>`;
+        const cell = none
+          ? `<span class="muted">미지급</span>`
+          : `${won(solo.val)} <span class="tag">${simLabel()} 차감</span><small>번들 ${won(bun.val)}</small>`;
+        dkCells = office
+          ? `<td class="num dk active" data-copy="${won(solo.val)}">${cell}</td><td class="num muted">-</td>`
+          : `<td class="num dk active" colspan="${cols.length}" data-copy="${won(solo.val)}">${cell}</td>`;
       } else if(g.kind === "tv"){
         // BTV 는 합계에 그대로 더해지므로 수수료가 곧 딸깍 기여분
         mid = "";
@@ -533,7 +568,8 @@ function renderTable(){
       h += `<tr class="item">
         <td class="name">${esc(it.name)}${(g.kind!=="tel" && it.noDed)?' <span class="tag">공제X</span>':''}</td>
         <td class="num muted">₩${won(it.fee)}</td>
-        <td class="num" style="color:var(--danger);font-weight:700">${won(it.comm)}</td>
+        <td class="num" style="color:var(--danger);font-weight:700">${won(it.comm)}${
+          g.kind === "sim" && simComm(it, true) !== it.comm ? `<small>번들 ${won(simComm(it, true))}</small>` : ""}</td>
         ${mid}${dkCells}
         <td class="acts">
           <button class="ghost" data-act="editItem" data-g="${g.id}" data-i="${it.id}">수정</button>
@@ -562,14 +598,16 @@ function opts(kinds){
 }
 function buildCombo(){
   const office = isOffice();
-  const keep = {n:$("#cNet").value, t:$("#cTel").value, v:$("#cTv").value};
+  const keep = {n:$("#cNet").value, t:$("#cTel").value, v:$("#cTv").value, s:$("#cSim").value};
   const none = `<option value="">선택 안 함</option>`;
   $("#cNet").innerHTML = none + opts(["net"]);
   $("#cTel").innerHTML = none + opts(["tel"]);
   $("#cTv").innerHTML  = none + opts(["tv"]);
+  $("#cSim").innerHTML = none + opts(["sim"]);
   // 상품군이 바뀌면 그 상품군에 없는 선택은 버린다
   const keepIf = (id, sel) => { const g = groupOf(id); if(g && inCat(g)) sel.value = id; };
-  keepIf(keep.n, $("#cNet")); keepIf(keep.t, $("#cTel")); keepIf(keep.v, $("#cTv"));
+  keepIf(keep.n, $("#cNet")); keepIf(keep.t, $("#cTel")); keepIf(keep.v, $("#cTv")); keepIf(keep.s, $("#cSim"));
+  $("#cSimWrap").style.display = $("#cSim").options.length > 1 ? "" : "none";
   $("#lblNet").textContent = office ? "오피스넷 상품" : "인터넷 상품";
   $("#cTvWrap").style.display = office ? "" : "none";
 }
@@ -610,6 +648,18 @@ function renderCombo(){
     total += c.val; margin += c.base - c.val; fee += netIt.fee;
     rows.push({k:"인터넷", n:esc(netIt.name),
       d:`${won(netIt.comm)}${netIt.noDed?"":" − "+won(S.ded)} = ${won(c.base)} → ${r.label} 차감`,
+      v:c.val, m:c.base - c.val});
+  }
+
+  const simIt = findItem($("#cSim").value);
+  if(simIt){
+    const bundled = !!netIt;                       // 인터넷을 같이 고르면 번들 수수료
+    const comm = simComm(simIt, bundled);
+    const c = simCalc(comm);
+    total += c.val; margin += c.base - c.val; fee += simIt.fee;
+    rows.push({k:"유심", n:`${esc(simIt.name)} <b>${bundled ? "번들" : "단독"}</b>`,
+      d: comm ? `${won(comm)} × ${simLabel()} 차감${bundled ? " · 인터넷 결합" : " · 유심 단독"}`
+              : "요금제 기준 미달 — 미지급",
       v:c.val, m:c.base - c.val});
   }
 
@@ -669,7 +719,7 @@ function openItem(gid, iid){
   editing = iid ? {gid, iid} : null;
   $("#mItemTitle").textContent = iid ? "상품 수정" : "상품 추가";
   const pool = S.groups.filter(inCat);
-  $("#iGroup").innerHTML = pool.map(g=>`<option value="${g.id}">${esc(g.name)}</option>`).join("");
+  $("#iGroup").innerHTML = pool.map(g=>`<option value="${g.id}" data-kind="${g.kind||"net"}">${esc(g.name)}</option>`).join("");
   const g = pool.find(x=>x.id===gid) || pool[0];
   $("#iGroup").value = g ? g.id : "";
   const it = iid && g ? g.items.find(x=>x.id===iid) : null;
@@ -677,9 +727,17 @@ function openItem(gid, iid){
   $("#iFee").value  = it ? it.fee  : "";
   $("#iComm").value = it ? it.comm : "";
   $("#iNoDed").checked = it ? !!it.noDed : false;
+  $("#iComm2").value = (it && typeof it.comm2 === "number") ? it.comm2 : "";
+  syncItemKind();
   open("#mItem");
   setTimeout(()=>$("#iName").focus(), 30);
 }
+function syncItemKind(){
+  const sim = ($("#iGroup").selectedOptions[0]||{}).dataset?.kind === "sim";
+  $("#fldComm2").style.display = sim ? "" : "none";
+  $("#lblComm").textContent = sim ? "단독 수수료 (VAT별도)" : "수수료 (VAT별도)";
+}
+$("#iGroup").onchange = syncItemKind;
 $("#iSave").onclick = ()=>{
   const name = $("#iName").value.trim();
   if(!name) return toast("상품명을 입력하세요");
@@ -689,6 +747,8 @@ $("#iSave").onclick = ()=>{
     comm: Number($("#iComm").value) || 0,
     noDed: $("#iNoDed").checked
   };
+  if(($("#iGroup").selectedOptions[0]||{}).dataset?.kind === "sim")
+    data.comm2 = Number($("#iComm2").value) || 0;
   const tgt = $("#iGroup").value;
   if(editing){
     const og = S.groups.find(g=>g.id===editing.gid);
@@ -794,6 +854,8 @@ $("#tabs").addEventListener("click", e=>{
   S.cat = b.dataset.cat; render();
 });
 $("#officeMargin").oninput = e => { S.officeMargin = Number(e.target.value)||0; render(); };
+$("#simRate").oninput  = e => { S.simRate = Math.max(0, Math.min(100, Number(e.target.value)||0)); render(); };
+$("#cSim").onchange    = renderCombo;
 $("#cTv").onchange     = renderCombo;
 $("#cTvQty").oninput   = renderCombo;
 $("#cTvMinus").onclick = ()=>{ $("#cTvQty").value = Math.max(1, qty("#cTvQty")-1); renderCombo(); };
@@ -804,7 +866,7 @@ $("#cLine").oninput    = renderCombo;
 $("#cEtc").oninput     = renderCombo;
 $("#cMinus").onclick   = ()=>{ $("#cLine").value = Math.max(1, lineCount()-1); renderCombo(); };
 $("#cPlus").onclick    = ()=>{ $("#cLine").value = Math.min(99, lineCount()+1); renderCombo(); };
-$("#cClear").onclick   = ()=>{ $("#cNet").value=""; $("#cTel").value=""; $("#cTv").value="";
+$("#cClear").onclick   = ()=>{ $("#cNet").value=""; $("#cTel").value=""; $("#cTv").value=""; $("#cSim").value="";
   $("#cLine").value=1; $("#cTvQty").value=1; $("#cEtc").value=""; renderCombo(); };
 $("#cOut").addEventListener("click", e=>{
   const t = e.target.closest("[data-copy]"); if(t) copy(t.dataset.copy);
