@@ -136,9 +136,10 @@
   <div class="lockbox">
     <div class="ico">🔒</div>
     <h2>딸깍 계산기</h2>
-    <p>비밀번호를 입력하세요</p>
+    <p id="lockNote">비밀번호를 입력하세요</p>
     <input type="password" id="pw" autocomplete="current-password" placeholder="••••••••">
     <button id="unlock">잠금 해제</button>
+    <button id="keepOld" class="ghost" style="display:none;width:100%;margin-top:8px">기존 데이터 그대로 쓰기</button>
     <div class="err" id="lockErr"></div>
   </div>
 </div>
@@ -344,6 +345,13 @@ const won = n => (Math.round(n)).toLocaleString("ko-KR");
 /* ---------- 기본 데이터 ---------- */
 const VER = 5;
 const ORIG_KEY = KEY + "_orig";
+const FP_KEY   = KEY + "_fp";
+/* 배포된 data.js 가 바뀌었는지 판별하는 지문 */
+function fpOf(str){
+  let h = 5381;
+  for(let i = 0; i < str.length; i++) h = ((h * 33) ^ str.charCodeAt(i)) >>> 0;
+  return str.length + "." + h.toString(36);
+}
 
 /* ---------- 상태 ---------- */
 let S = null;
@@ -814,7 +822,7 @@ $("#btnReset").onclick = ()=>{
 };
 $("#btnLock").onclick = ()=>{
   if(!confirm("잠그시겠습니까?\n이 기기에 저장된 데이터가 지워지고, 다시 비밀번호를 입력해야 합니다.\n(직접 수정한 내용이 있다면 먼저 «내보내기» 하세요)")) return;
-  try{ localStorage.removeItem(KEY); localStorage.removeItem(ORIG_KEY); }catch(e){}
+  try{ localStorage.removeItem(KEY); localStorage.removeItem(ORIG_KEY); localStorage.removeItem(FP_KEY); }catch(e){}
   location.reload();
 };
 $("#btnExport").onclick = ()=>{
@@ -855,7 +863,10 @@ async function tryUnlock(){
     const data = normalize(await decryptJSON(window.ENC, pw));
     if(!data) throw new Error("형식 오류");
     S = data;
-    try{ localStorage.setItem(ORIG_KEY, JSON.stringify(data)); }catch(e){}
+    try{
+      localStorage.setItem(ORIG_KEY, JSON.stringify(data));
+      localStorage.setItem(FP_KEY, fpOf(window.ENC));
+    }catch(e){}
     $("#pw").value = "";
     showApp();
   }catch(e){
@@ -867,13 +878,47 @@ async function tryUnlock(){
 $("#unlock").onclick = tryUnlock;
 $("#pw").addEventListener("keydown", e => { if(e.key === "Enter") tryUnlock(); });
 
-(function init(){
-  let saved = null;
+let STALE = null;
+$("#keepOld").onclick = ()=>{
+  if(!STALE) return;
+  S = STALE;
+  try{ localStorage.setItem(FP_KEY, fpOf(window.ENC)); }catch(e){}
+  showApp();
+};
+
+/* 배포 서버에 더 새 data.js 가 있으면 캐시를 건너뛰고 받아온다 */
+async function freshEnc(){
+  if(!/^https?:/.test(location.protocol)) return window.ENC;
+  try{
+    const r = await fetch("data.js", {cache:"reload"});
+    if(!r.ok) return window.ENC;
+    const m = (await r.text()).match(/window\.ENC\s*=\s*"([^"]+)"/);
+    return (m && m[1]) || window.ENC;
+  }catch(e){ return window.ENC; }
+}
+
+(async function init(){
+  window.ENC = await freshEnc();
+  let saved = null, savedFp = null;
   try{ saved = normalize(JSON.parse(localStorage.getItem(KEY))); }catch(e){}
-  if(saved){ S = saved; showApp(); return; }          // 이 기기에서 이미 잠금 해제함
-  if(window.ENC){ setTimeout(()=>$("#pw").focus(), 60); return; }   // 잠금 화면
-  lockErr("데이터 파일(data.js)을 찾을 수 없습니다");
-  $("#pw").disabled = $("#unlock").disabled = true;
+  try{ savedFp = localStorage.getItem(FP_KEY); }catch(e){}
+
+  if(!window.ENC){
+    if(saved){ S = saved; showApp(); return; }
+    lockErr("데이터 파일(data.js)을 찾을 수 없습니다");
+    $("#pw").disabled = $("#unlock").disabled = true;
+    return;
+  }
+  // 배포된 데이터가 이 기기에 저장된 것과 다르면 다시 불러오도록 안내
+  if(saved && savedFp !== fpOf(window.ENC)){
+    STALE = saved;
+    $("#lockNote").innerHTML = "상품 데이터가 업데이트됐습니다.<br>비밀번호를 넣어 새 데이터를 불러오세요.";
+    $("#keepOld").style.display = "";
+    setTimeout(()=>$("#pw").focus(), 60);
+    return;
+  }
+  if(saved){ S = saved; showApp(); return; }
+  setTimeout(()=>$("#pw").focus(), 60);
 })();
 </script>
 </body>

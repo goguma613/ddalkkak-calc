@@ -3,3 +3,7 @@ make-data.html
 
 # 로컬 개발 설정
 .claude/
+
+# 임시 백업
+*.bak
+data.js.user.bak
