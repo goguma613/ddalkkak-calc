@@ -177,7 +177,7 @@
         </div>
         <div class="fld" id="fldSimRate">
           <label>유심 차감율 (%)</label>
-          <input type="number" id="simRate" step="1" min="0" max="100" value="50">
+          <input type="number" id="simRate" step="1" min="0" max="100" value="30">
         </div>
         <div class="fld" id="fldOfficeMargin">
           <label>오피스넷 마진</label>
@@ -370,7 +370,7 @@ function normalize(s){
   if(!s || !s.groups || !s.rates) return null;
   if(typeof s.ded     !== "number") s.ded = 55000;
   if(typeof s.telRate !== "number") s.telRate = 50;
-  if(typeof s.simRate !== "number") s.simRate = 50;
+  if(typeof s.simRate !== "number") s.simRate = 30;
   if(typeof s.officeMargin !== "number") s.officeMargin = 50000;
   s.groups.forEach(g => {
     if(!g.kind) g.kind = (g.tel === true || (g.name||"").trim() === "전화") ? "tel" : "net";
