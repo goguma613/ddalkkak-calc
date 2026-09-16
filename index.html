@@ -106,6 +106,12 @@
   .sumbox .mar .k{background:var(--card);color:var(--accent)}
   .sumbox .mar .v{font-size:20px;font-weight:800;color:var(--accent)}
   .sumbox .empty{padding:18px 12px;text-align:center;color:var(--muted);font-size:12.5px}
+  .tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+  .tabs button{padding:8px 16px;font-size:13.5px;font-weight:700;border-radius:8px}
+  .tabs button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .tabs button.on:hover{color:#fff;opacity:.9}
+  .sumbox .sub{background:var(--group);padding:11px 12px;margin:0}
+  .sumbox .sub .v{font-size:16px;font-weight:800;color:var(--good)}
   /* 잠금 화면 */
   #app{display:none}
   #app.on{display:block}
@@ -139,25 +145,23 @@
 
 <div class="wrap" id="app">
   <h1>딸깍 계산기</h1>
-  <div class="sub">수수료에서 공제액을 뺀 뒤, 선택한 비율만큼 차감한 금액이 <b>딸깍</b>입니다.</div>
+  <div class="sub">수수료에서 공제액을 뺀 뒤 남는 금액이 <b>딸깍</b>, 우리가 가져가는 몫이 <b>마진</b>입니다.</div>
+  <div class="tabs" id="tabs"></div>
 
   <!-- 설정 -->
   <div class="card">
     <div class="card-h">
       <h2>계산 설정</h2>
       <div class="spacer"></div>
-      <div class="formula">
-        <div>인터넷 = ( 수수료 − <b id="fDed">55,000</b> ) × ( 1 − <b id="fRate">20%</b> )</div>
-        <div>전화 &nbsp;&nbsp;&nbsp;= 수수료 × ( 1 − <b id="fTel">50%</b> ) <span style="opacity:.7">· 공제 없음</span></div>
-      </div>
+      <div class="formula" id="formula"></div>
     </div>
     <div class="card-b">
       <div class="row">
-        <div class="fld">
+        <div class="fld" id="fldRate">
           <label>차감 비율</label>
           <select id="rateSel"></select>
         </div>
-        <div class="fld">
+        <div class="fld" id="fldRateBtn">
           <label>&nbsp;</label>
           <button id="btnRates">비율 관리</button>
         </div>
@@ -169,6 +173,10 @@
           <label>전화 차감율 (%)</label>
           <input type="number" id="telRate" step="1" min="0" max="100" value="50">
         </div>
+        <div class="fld" id="fldOfficeMargin">
+          <label>오피스넷 마진</label>
+          <input type="number" id="officeMargin" step="10000" value="50000">
+        </div>
         <div class="fld">
           <label>절사 단위</label>
           <select id="unit">
@@ -179,7 +187,7 @@
             <option value="10000">10,000원 절사 (만원 단위)</option>
           </select>
         </div>
-        <div class="fld">
+        <div class="fld" id="fldMode">
           <label>표시 방식</label>
           <select id="mode">
             <option value="compare">전 비율 비교</option>
@@ -211,8 +219,20 @@
     <div class="card-b">
       <div class="row">
         <div class="fld" style="flex:2;min-width:250px">
-          <label>인터넷 상품</label>
+          <label id="lblNet">인터넷 상품</label>
           <select id="cNet" style="width:100%"></select>
+        </div>
+        <div class="fld" id="cTvWrap" style="flex:1.4;min-width:200px;display:none">
+          <label>BTV</label>
+          <select id="cTv" style="width:100%"></select>
+        </div>
+        <div class="fld" id="cTvQtyWrap" style="display:none">
+          <label>대수</label>
+          <div class="stepper">
+            <button type="button" id="cTvMinus">−</button>
+            <input type="number" id="cTvQty" min="1" max="99" value="1">
+            <button type="button" id="cTvPlus">+</button>
+          </div>
         </div>
         <div class="fld" style="flex:1.4;min-width:210px">
           <label>전화 상품</label>
@@ -292,7 +312,16 @@
     <h3 id="mGroupTitle">구분 추가</h3>
     <div class="modal-b">
       <div class="fld"><label>구분 이름</label><input type="text" id="gName" placeholder="예: 500M"></div>
-      <label class="chk"><input type="checkbox" id="gTel"> 전화 방식 적용 (공제 없이 고정 % 차감)</label>
+      <div class="fld"><label>상품군</label><select id="gCat">
+        <option value="soho">소호인터넷</option>
+        <option value="office">오피스넷</option>
+        <option value="*">공용 (양쪽 모두)</option>
+      </select></div>
+      <div class="fld"><label>종류</label><select id="gKind">
+        <option value="net">인터넷</option>
+        <option value="tel">전화 — 공제 없이 고정 % 차감</option>
+        <option value="tv">TV — 오피스넷 합계에 그대로 합산</option>
+      </select></div>
     </div>
     <div class="modal-f">
       <button data-close>취소</button>
@@ -313,7 +342,7 @@ const $ = s => document.querySelector(s);
 const won = n => (Math.round(n)).toLocaleString("ko-KR");
 
 /* ---------- 기본 데이터 ---------- */
-const VER = 4;
+const VER = 5;
 const ORIG_KEY = KEY + "_orig";
 
 /* ---------- 상태 ---------- */
@@ -322,6 +351,12 @@ function normalize(s){
   if(!s || !s.groups || !s.rates) return null;
   if(typeof s.ded     !== "number") s.ded = 55000;
   if(typeof s.telRate !== "number") s.telRate = 50;
+  if(typeof s.officeMargin !== "number") s.officeMargin = 50000;
+  s.groups.forEach(g => {
+    if(!g.kind) g.kind = (g.tel === true || (g.name||"").trim() === "전화") ? "tel" : "net";
+    if(!g.cat)  g.cat  = g.kind === "tel" ? "*" : "soho";
+  });
+  if(!s.cat || !CATS.some(c => c.id === s.cat)) s.cat = "soho";
   if(typeof s.unit    !== "number") s.unit = 1;
   if((s.v || 1) < 4) s.unit = 10000;   // 딸깍 금액 만원 단위 절사, 절사분은 마진으로
   if(!s.mode) s.mode = "compare";
@@ -354,6 +389,21 @@ function calc(comm, ratePct, noDed){
   const u    = Number(S.unit)||1;
   return { base, raw, val: Math.floor(raw/u)*u };
 }
+const CATS = [{id:"soho", name:"소호인터넷"}, {id:"office", name:"오피스넷"}];
+const catName = id => (CATS.find(c => c.id === id) || {}).name || id;
+/* 현재 상품군에 보이는 구분 (cat "*" 는 공용) */
+const inCat = g => g.cat === S.cat || g.cat === "*";
+const isOffice = () => S.cat === "office";
+
+/* 오피스넷: 인터넷+BTV 수수료 합계에서 플랫폼 공제와 우리 마진을 한 번씩 차감 */
+function officeCalc(sum){
+  const base = sum - (Number(S.ded) || 0);
+  const raw  = base - (Number(S.officeMargin) || 0);
+  const u    = Number(S.unit) || 1;
+  const val  = Math.max(0, Math.floor(raw / u) * u);
+  return { sum, base, val, margin: base - val };
+}
+
 /* 전화: 공제 없이 고정 % 차감 */
 const isTel = g => !!g && (g.tel === true || (g.name||"").trim() === "전화");
 function telCalc(comm){
@@ -387,60 +437,96 @@ function fallback(text, done){
 
 /* ---------- 렌더 ---------- */
 function renderControls(){
+  const office = isOffice();
+  $("#tabs").innerHTML = CATS.map(c =>
+    `<button data-cat="${c.id}" class="${c.id===S.cat?"on":""}">${esc(c.name)}</button>`).join("");
+
   const sel = $("#rateSel");
   sel.innerHTML = S.rates.map(r=>`<option value="${r.id}">${r.label} 차감</option>`).join("");
   if(!S.rates.some(r=>r.id===S.activeRate)) S.activeRate = S.rates[0] ? S.rates[0].id : "";
   sel.value = S.activeRate;
   $("#ded").value  = S.ded;
   $("#telRate").value = S.telRate;
+  $("#officeMargin").value = S.officeMargin;
   $("#unit").value = S.unit;
   $("#mode").value = S.mode;
-  $("#fDed").textContent  = won(S.ded);
-  $("#fRate").textContent = activeRate().label;
-  $("#fTel").textContent  = telLabel();
+
+  // 상품군에 따라 관련 없는 설정은 숨김
+  $("#fldRate").style.display   = office ? "none" : "";
+  $("#fldRateBtn").style.display= office ? "none" : "";
+  $("#fldMode").style.display   = office ? "none" : "";
+  $("#fldOfficeMargin").style.display = office ? "" : "none";
+
+  $("#formula").innerHTML = office
+    ? `<div>오피스넷 + BTV = 수수료 합계 − <b>${won(S.ded)}</b> − <b>${won(S.officeMargin)}</b></div>
+       <div>전화 &nbsp;&nbsp;&nbsp;= 수수료 × ( 1 − <b>${telLabel()}</b> )</div>
+       <div style="opacity:.7">공제와 마진은 묶음 전체에 한 번씩만 적용</div>`
+    : `<div>인터넷 = ( 수수료 − <b>${won(S.ded)}</b> ) × ( 1 − <b>${activeRate().label}</b> )</div>
+       <div>전화 &nbsp;&nbsp;&nbsp;= 수수료 × ( 1 − <b>${telLabel()}</b> ) <span style="opacity:.7">· 공제 없음</span></div>`;
 }
 
 function renderTable(){
   const q = ($("#search").value||"").trim().toLowerCase();
+  const office = isOffice();
   const compare = S.mode === "compare";
-  const cols = compare ? S.rates : [activeRate()];
-  const span = 4 + cols.length + 1;
+  const cols = office ? [] : (compare ? S.rates : [activeRate()]);
+  const span = (office ? 5 : 4 + cols.length) + 1;
 
   let h = `<thead><tr>
     <th>상품</th>
-    <th>요금(VAT포함)</th>
-    <th>수수료(VAT별도)</th>
-    <th>공제 후</th>
-    ${cols.map(r=>`<th style="color:var(--good)">딸깍 ${r.label}</th>`).join("")}
-    <th></th></tr></thead><tbody>`;
+    <th>월 요금</th>
+    <th>수수료(VAT별도)</th>` +
+    (office
+      ? `<th style="color:var(--good)">딸깍</th><th style="color:var(--accent)">마진</th>`
+      : `<th>공제 후</th>` + cols.map(r=>`<th style="color:var(--good)">딸깍 ${r.label}</th>`).join("")) +
+    `<th></th></tr></thead><tbody>`;
 
   let shown = 0;
-  S.groups.forEach(g=>{
+  S.groups.filter(inCat).forEach(g=>{
     const items = g.items.filter(it => !q || it.name.toLowerCase().includes(q) || g.name.toLowerCase().includes(q));
     if(q && !items.length) return;
     h += `<tr class="grp"><td colspan="${span}">${esc(g.name)}
+            ${g.cat === "*" ? '<span class="tag">공용</span>' : ""}
             <button class="ghost" data-act="addItem" data-g="${g.id}">+ 상품</button>
-            <button class="ghost" data-act="editGroup" data-g="${g.id}">이름</button>
+            <button class="ghost" data-act="editGroup" data-g="${g.id}">설정</button>
             <button class="ghost danger" data-act="delGroup" data-g="${g.id}">삭제</button>
           </td></tr>`;
-    const tel = isTel(g);
     items.forEach(it=>{
       shown++;
-      const c0 = tel ? telCalc(it.comm) : calc(it.comm, 0, it.noDed);
-      const dkCells = tel
-        ? `<td class="num dk active" colspan="${cols.length}" data-copy="${won(telCalc(it.comm).val)}">
-             ${won(telCalc(it.comm).val)} <span class="tag">${telLabel()} 차감</span></td>`
-        : cols.map(r=>{
-            const c = calc(it.comm, r.value, it.noDed);
-            const act = (!compare || r.id===S.activeRate) ? " active" : "";
-            return `<td class="num dk${act}" data-copy="${won(c.val)}">${won(c.val)}</td>`;
-          }).join("");
+      let mid, dkCells;
+      if(g.kind === "tel"){
+        const c = telCalc(it.comm);
+        mid = office ? "" : `<td class="num muted">-</td>`;
+        dkCells = office
+          ? `<td class="num dk active" data-copy="${won(c.val)}">${won(c.val)} <span class="tag">${telLabel()} 차감</span></td>
+             <td class="num muted">${won(c.base - c.val)}</td>`
+          : `<td class="num dk active" colspan="${cols.length}" data-copy="${won(c.val)}">
+               ${won(c.val)} <span class="tag">${telLabel()} 차감</span></td>`;
+      } else if(g.kind === "tv"){
+        // BTV 는 합계에 그대로 더해지므로 수수료가 곧 딸깍 기여분
+        mid = "";
+        dkCells = `<td class="num dk active" data-copy="${won(it.comm)}">${won(it.comm)}
+                     <span class="tag">결합 시 합산</span></td>
+                   <td class="num muted">0</td>`;
+      } else if(office){
+        const c = officeCalc(it.comm);
+        mid = "";
+        dkCells = `<td class="num dk active" data-copy="${won(c.val)}">${won(c.val)}</td>
+                   <td class="num" style="color:var(--accent);font-weight:700">${won(c.margin)}</td>`;
+      } else {
+        const c0 = calc(it.comm, 0, it.noDed);
+        mid = `<td class="num muted">${won(c0.base)}</td>`;
+        dkCells = cols.map(r=>{
+          const c = calc(it.comm, r.value, it.noDed);
+          const act = (!compare || r.id===S.activeRate) ? " active" : "";
+          return `<td class="num dk${act}" data-copy="${won(c.val)}">${won(c.val)}</td>`;
+        }).join("");
+      }
       h += `<tr class="item">
-        <td class="name">${esc(it.name)}${(!tel && it.noDed)?' <span class="tag">공제X</span>':''}</td>
+        <td class="name">${esc(it.name)}${(g.kind!=="tel" && it.noDed)?' <span class="tag">공제X</span>':''}</td>
         <td class="num muted">₩${won(it.fee)}</td>
         <td class="num" style="color:var(--danger);font-weight:700">${won(it.comm)}</td>
-        <td class="num muted">${tel ? "-" : won(c0.base)}</td>
-        ${dkCells}
+        ${mid}${dkCells}
         <td class="acts">
           <button class="ghost" data-act="editItem" data-g="${g.id}" data-i="${it.id}">수정</button>
           <button class="ghost danger" data-act="delItem" data-g="${g.id}" data-i="${it.id}">삭제</button>
@@ -456,76 +542,96 @@ function findItem(id){
   for(const g of S.groups){ const it = g.items.find(x=>x.id===id); if(it) return it; }
   return null;
 }
+function groupOf(id){
+  for(const g of S.groups){ if(g.items.some(x=>x.id===id)) return g; }
+  return null;
+}
+function opts(kinds){
+  return S.groups.filter(g => inCat(g) && kinds.includes(g.kind)).map(g =>
+    `<optgroup label="${esc(g.name)}">` +
+    g.items.map(it=>`<option value="${it.id}">${esc(it.name)}</option>`).join("") +
+    `</optgroup>`).join("");
+}
 function buildCombo(){
-  const net = $("#cNet"), tel = $("#cTel");
-  const keepN = net.value, keepT = tel.value;
-  net.innerHTML = `<option value="">선택 안 함</option>` +
-    S.groups.filter(g=>!isTel(g)).map(g=>
-      `<optgroup label="${esc(g.name)}">` +
-      g.items.map(it=>`<option value="${it.id}">${esc(it.name)}</option>`).join("") +
-      `</optgroup>`).join("");
-  tel.innerHTML = `<option value="">선택 안 함</option>` +
-    S.groups.filter(isTel).flatMap(g=>g.items)
-      .map(it=>`<option value="${it.id}">${esc(it.name)}</option>`).join("");
-  if(findItem(keepN)) net.value = keepN;
-  if(findItem(keepT)) tel.value = keepT;
+  const office = isOffice();
+  const keep = {n:$("#cNet").value, t:$("#cTel").value, v:$("#cTv").value};
+  const none = `<option value="">선택 안 함</option>`;
+  $("#cNet").innerHTML = none + opts(["net"]);
+  $("#cTel").innerHTML = none + opts(["tel"]);
+  $("#cTv").innerHTML  = none + opts(["tv"]);
+  // 상품군이 바뀌면 그 상품군에 없는 선택은 버린다
+  const keepIf = (id, sel) => { const g = groupOf(id); if(g && inCat(g)) sel.value = id; };
+  keepIf(keep.n, $("#cNet")); keepIf(keep.t, $("#cTel")); keepIf(keep.v, $("#cTv"));
+  $("#lblNet").textContent = office ? "오피스넷 상품" : "인터넷 상품";
+  $("#cTvWrap").style.display = office ? "" : "none";
 }
-function lineCount(){
-  return Math.max(1, Math.min(99, Math.floor(Number($("#cLine").value)||1)));
-}
+const qty = sel => Math.max(1, Math.min(99, Math.floor(Number($(sel).value)||1)));
+const lineCount = () => qty("#cLine");
+
 function renderCombo(){
+  const office = isOffice();
   const r = activeRate();
   const netIt = findItem($("#cNet").value);
   const telIt = findItem($("#cTel").value);
-  const n = lineCount();
+  const tvIt  = office ? findItem($("#cTv").value) : null;
+  const n = lineCount(), tvN = qty("#cTvQty");
   const etc = Number($("#cEtc").value)||0;
-  $("#cLineWrap").style.display = telIt ? "" : "none";
+  $("#cLineWrap").style.display  = telIt ? "" : "none";
+  $("#cTvQtyWrap").style.display = (office && tvIt) ? "" : "none";
 
   let total = 0, margin = 0, fee = 0;
   const rows = [];
 
-  if(netIt){
+  if(office){
+    // 오피스넷 + BTV 를 하나로 묶어 계산
+    let sum = 0;
+    if(netIt){ sum += netIt.comm; fee += netIt.fee;
+      rows.push({k:"오피스넷", n:esc(netIt.name), d:"수수료", v:netIt.comm, plain:true}); }
+    if(tvIt){ sum += tvIt.comm * tvN; fee += tvIt.fee * tvN;
+      rows.push({k:"BTV", n:`${esc(tvIt.name)} <b>× ${tvN}대</b>`,
+                 d:`${won(tvIt.comm)} × ${tvN}대`, v:tvIt.comm*tvN, plain:true}); }
+    if(sum > 0){
+      const c = officeCalc(sum);
+      total += c.val; margin += c.margin;
+      rows.push({k:"소계", n:"오피스넷 묶음",
+        d:`${won(sum)} − 플랫폼 ${won(S.ded)} − 마진 ${won(S.officeMargin)}`,
+        v:c.val, m:c.margin, sub:true});
+    }
+  } else if(netIt){
     const c = calc(netIt.comm, r.value, netIt.noDed);
-    const m = c.base - c.val;
-    total += c.val; margin += m;
-    fee += netIt.fee;
+    total += c.val; margin += c.base - c.val; fee += netIt.fee;
     rows.push({k:"인터넷", n:esc(netIt.name),
       d:`${won(netIt.comm)}${netIt.noDed?"":" − "+won(S.ded)} = ${won(c.base)} → ${r.label} 차감`,
-      v:c.val, m});
+      v:c.val, m:c.base - c.val});
   }
+
   if(telIt){
     const c = telCalc(telIt.comm);
-    const sub = c.val * n, m = (c.base - c.val) * n;
-    total += sub; margin += m;
-    fee += telIt.fee * n;
+    total += c.val * n; margin += (c.base - c.val) * n; fee += telIt.fee * n;
     rows.push({k:"전화", n:`${esc(telIt.name)} <b>× ${n}회선</b>`,
       d:`${won(telIt.comm)} × ${telLabel()} 차감 = ${won(c.val)} × ${n}회선`,
-      v:sub, m});
+      v:c.val * n, m:(c.base - c.val) * n});
   }
   if(etc > 0){
     const c = calc(etc, r.value);
-    const m = c.base - c.val;
-    total += c.val; margin += m;
+    total += c.val; margin += c.base - c.val;
     rows.push({k:"직접", n:`수수료 ${won(etc)}`,
-      d:`${won(etc)} − ${won(S.ded)} = ${won(c.base)} → ${r.label} 차감`, v:c.val, m});
+      d:`${won(etc)} − ${won(S.ded)} = ${won(c.base)} → ${r.label} 차감`, v:c.val, m:c.base - c.val});
   }
 
   if(!rows.length){
-    $("#cOut").innerHTML = `<div class="empty">인터넷 / 전화 상품을 선택하면 딸깍 합계가 계산됩니다.</div>`;
+    $("#cOut").innerHTML = `<div class="empty">상품을 선택하면 딸깍 합계가 계산됩니다.</div>`;
     return;
   }
-  const sub = [];
-  if(fee)  sub.push(`월 요금 ₩${won(fee)}`);
-
   $("#cOut").innerHTML = rows.map(x=>`
-    <div class="l">
+    <div class="l${x.sub?" sub":""}">
       <span class="k">${x.k}</span>
       <span class="n">${x.n}<small>${x.d}</small></span>
-      <span class="v">${won(x.v)}<small>마진 ${won(x.m)}</small></span>
+      <span class="v">${won(x.v)}${x.plain?"":`<small>마진 ${won(x.m)}</small>`}</span>
     </div>`).join("") + `
     <div class="l tot" data-copy="${won(total)}" title="클릭하면 복사">
       <span class="k">딸깍 합계</span>
-      <span class="n"><small>${sub.join(" · ") || "&nbsp;"}</small></span>
+      <span class="n"><small>${fee?`월 요금 ₩${won(fee)}`:"&nbsp;"}</small></span>
       <span class="v">${won(total)}</span>
     </div>
     <div class="l mar" data-copy="${won(margin)}" title="클릭하면 복사">
@@ -554,8 +660,9 @@ let editing = null; // {gid, iid} | null
 function openItem(gid, iid){
   editing = iid ? {gid, iid} : null;
   $("#mItemTitle").textContent = iid ? "상품 수정" : "상품 추가";
-  $("#iGroup").innerHTML = S.groups.map(g=>`<option value="${g.id}">${esc(g.name)}</option>`).join("");
-  const g = S.groups.find(x=>x.id===gid) || S.groups[0];
+  const pool = S.groups.filter(inCat);
+  $("#iGroup").innerHTML = pool.map(g=>`<option value="${g.id}">${esc(g.name)}</option>`).join("");
+  const g = pool.find(x=>x.id===gid) || pool[0];
   $("#iGroup").value = g ? g.id : "";
   const it = iid && g ? g.items.find(x=>x.id===iid) : null;
   $("#iName").value = it ? it.name : "";
@@ -596,16 +703,17 @@ function openGroup(gid){
   $("#mGroupTitle").textContent = gid ? "구분 이름 수정" : "구분 추가";
   const g = gid ? S.groups.find(x=>x.id===gid) : null;
   $("#gName").value = g ? g.name : "";
-  $("#gTel").checked = g ? isTel(g) : false;
+  $("#gCat").value  = g ? (g.cat || "soho") : S.cat;
+  $("#gKind").value = g ? (g.kind || "net") : "net";
   open("#mGroup");
   setTimeout(()=>$("#gName").focus(), 30);
 }
 $("#gSave").onclick = ()=>{
   const n = $("#gName").value.trim();
   if(!n) return toast("이름을 입력하세요");
-  const t = $("#gTel").checked;
-  if(gEdit){ const g = S.groups.find(g=>g.id===gEdit); g.name = n; g.tel = t; }
-  else S.groups.push({id:uid(), name:n, tel:t, items:[]});
+  const cat = $("#gCat").value, kind = $("#gKind").value;
+  if(gEdit){ const g = S.groups.find(g=>g.id===gEdit); g.name = n; g.cat = cat; g.kind = kind; g.tel = (kind === "tel"); }
+  else S.groups.push({id:uid(), name:n, cat, kind, tel:(kind === "tel"), items:[]});
   close("#mGroup"); render();
 };
 
@@ -673,18 +781,28 @@ $("#telRate").oninput  = e => { S.telRate = Math.max(0, Math.min(100, Number(e.t
 $("#unit").onchange    = e => { S.unit = Number(e.target.value)||1; render(); };
 $("#mode").onchange    = e => { S.mode = e.target.value; render(); };
 $("#search").oninput   = renderTable;
+$("#tabs").addEventListener("click", e=>{
+  const b = e.target.closest("[data-cat]"); if(!b) return;
+  S.cat = b.dataset.cat; render();
+});
+$("#officeMargin").oninput = e => { S.officeMargin = Number(e.target.value)||0; render(); };
+$("#cTv").onchange     = renderCombo;
+$("#cTvQty").oninput   = renderCombo;
+$("#cTvMinus").onclick = ()=>{ $("#cTvQty").value = Math.max(1, qty("#cTvQty")-1); renderCombo(); };
+$("#cTvPlus").onclick  = ()=>{ $("#cTvQty").value = Math.min(99, qty("#cTvQty")+1); renderCombo(); };
 $("#cNet").onchange    = renderCombo;
 $("#cTel").onchange    = renderCombo;
 $("#cLine").oninput    = renderCombo;
 $("#cEtc").oninput     = renderCombo;
 $("#cMinus").onclick   = ()=>{ $("#cLine").value = Math.max(1, lineCount()-1); renderCombo(); };
 $("#cPlus").onclick    = ()=>{ $("#cLine").value = Math.min(99, lineCount()+1); renderCombo(); };
-$("#cClear").onclick   = ()=>{ $("#cNet").value=""; $("#cTel").value=""; $("#cLine").value=1; $("#cEtc").value=""; renderCombo(); };
+$("#cClear").onclick   = ()=>{ $("#cNet").value=""; $("#cTel").value=""; $("#cTv").value="";
+  $("#cLine").value=1; $("#cTvQty").value=1; $("#cEtc").value=""; renderCombo(); };
 $("#cOut").addEventListener("click", e=>{
   const t = e.target.closest("[data-copy]"); if(t) copy(t.dataset.copy);
 });
 $("#btnRates").onclick = openRates;
-$("#btnAddItem").onclick  = ()=> S.groups.length ? openItem(S.groups[0].id, null) : toast("먼저 구분을 추가하세요");
+$("#btnAddItem").onclick  = ()=>{ const p = S.groups.filter(inCat); p.length ? openItem(p[0].id, null) : toast("먼저 구분을 추가하세요"); };
 $("#btnAddGroup").onclick = ()=> openGroup(null);
 $("#btnReset").onclick = ()=>{
   let orig = null;
