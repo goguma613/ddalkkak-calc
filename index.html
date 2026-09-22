@@ -239,6 +239,14 @@
           <label id="lblNet">인터넷 상품</label>
           <select id="cNet" style="width:100%"></select>
         </div>
+        <div class="fld" id="cNetQtyWrap" style="display:none">
+          <label>회선 수</label>
+          <div class="stepper">
+            <button type="button" id="cNetMinus">−</button>
+            <input type="number" id="cNetQty" min="1" max="99" value="1">
+            <button type="button" id="cNetPlus">+</button>
+          </div>
+        </div>
         <div class="fld" id="cSimWrap" style="flex:1.4;min-width:200px">
           <label>유심 상품</label>
           <select id="cSim" style="width:100%"></select>
@@ -519,7 +527,7 @@ function renderControls(){
     ? `<div>오피스넷 + BTV = 수수료 합계 − <b>${won(S.ded)}</b> − <b>${won(S.officeMargin)}</b></div>
        <div>전화 &nbsp;&nbsp;&nbsp;= 수수료 × ( 1 − <b>${telLabel()}</b> )</div>
        <div style="opacity:.7">공제와 마진은 묶음 전체에 한 번씩만 적용</div>`
-    : `<div>인터넷 = ( 수수료 − <b>${won(S.ded)}</b> ) × ( 1 − <b>${activeRate().label}</b> )</div>
+    : `<div>인터넷 = ( 수수료 × 회선수 − <b>${won(S.ded)}</b> ) × ( 1 − <b>${activeRate().label}</b> ) <span style="opacity:.7">· 공제는 한 번만</span></div>
        <div>전화 &nbsp;&nbsp;&nbsp;= 수수료 × ( 1 − <b>${telLabel()}</b> ) <span style="opacity:.7">· 공제 없음</span></div>
        <div>유심 &nbsp;&nbsp;&nbsp;= 수수료 × ( 1 − <b>${simLabel()}</b> ) <span style="opacity:.7">· 인터넷 결합 시 번들 수수료</span></div>
        <div>부가옵션 = 수수료 × ( 1 − 상품별 차감율 ) <span style="opacity:.7">· 기본 0% = 그대로 합산</span></div>`;
@@ -688,6 +696,7 @@ function renderCombo(){
   const tvIt  = office ? findItem($("#cTv").value) : null;
   const n = lineCount(), tvN = qty("#cTvQty");
   const etc = Number($("#cEtc").value)||0;
+  $("#cNetQtyWrap").style.display = (!office && netIt) ? "" : "none";
   $("#cLineWrap").style.display  = telIt ? "" : "none";
   $("#cTvQtyWrap").style.display = (office && tvIt) ? "" : "none";
 
@@ -710,10 +719,13 @@ function renderCombo(){
         v:c.val, m:c.margin, sub:true});
     }
   } else if(netIt){
-    const c = calc(netIt.comm, r.value, netIt.noDed);
-    total += c.val; margin += c.base - c.val; fee += netIt.fee;
-    rows.push({k:"인터넷", n:esc(netIt.name),
-      d:`${won(netIt.comm)}${netIt.noDed?"":" − "+won(S.ded)} = ${won(c.base)} → ${r.label} 차감`,
+    const nq = qty("#cNetQty");
+    const gross = netIt.comm * nq;                 // 회선 수만큼 합산한 뒤 공제는 한 번만
+    const c = calc(gross, r.value, netIt.noDed);
+    total += c.val; margin += c.base - c.val; fee += netIt.fee * nq;
+    rows.push({k:"인터넷", n:`${esc(netIt.name)}${nq>1?` <b>× ${nq}회선</b>`:""}`,
+      d:`${nq>1 ? `${won(netIt.comm)} × ${nq}회선 = ${won(gross)}` : won(gross)}${
+           netIt.noDed ? "" : " − " + won(S.ded)} = ${won(c.base)} → ${r.label} 차감`,
       v:c.val, m:c.base - c.val});
   }
 
@@ -946,6 +958,9 @@ $("#cTvQty").oninput   = renderCombo;
 $("#cTvMinus").onclick = ()=>{ $("#cTvQty").value = Math.max(1, qty("#cTvQty")-1); renderCombo(); };
 $("#cTvPlus").onclick  = ()=>{ $("#cTvQty").value = Math.min(99, qty("#cTvQty")+1); renderCombo(); };
 $("#cNet").onchange    = renderCombo;
+$("#cNetQty").oninput  = renderCombo;
+$("#cNetMinus").onclick= ()=>{ $("#cNetQty").value = Math.max(1, qty("#cNetQty")-1); renderCombo(); };
+$("#cNetPlus").onclick = ()=>{ $("#cNetQty").value = Math.min(99, qty("#cNetQty")+1); renderCombo(); };
 $("#cTel").onchange    = renderCombo;
 $("#cLine").oninput    = renderCombo;
 $("#cEtc").oninput     = renderCombo;
@@ -953,7 +968,7 @@ $("#cMinus").onclick   = ()=>{ $("#cLine").value = Math.max(1, lineCount()-1); r
 $("#cPlus").onclick    = ()=>{ $("#cLine").value = Math.min(99, lineCount()+1); renderCombo(); };
 $("#cClear").onclick   = ()=>{ optSel = {}; renderOpts();
   $("#cNet").value=""; $("#cTel").value=""; $("#cTv").value=""; $("#cSim").value="";
-  $("#cLine").value=1; $("#cTvQty").value=1; $("#cEtc").value=""; renderCombo(); };
+  $("#cLine").value=1; $("#cTvQty").value=1; $("#cNetQty").value=1; $("#cEtc").value=""; renderCombo(); };
 $("#cOut").addEventListener("click", e=>{
   const t = e.target.closest("[data-copy]"); if(t) copy(t.dataset.copy);
 });
