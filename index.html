@@ -270,7 +270,7 @@
           <input type="number" id="cEtc" step="10000" placeholder="선택">
         </div>
         <div class="fld" id="cOptWrap" style="flex-basis:100%;display:none">
-          <label>부가옵션 <span class="hint">· 수수료가 그대로 딸깍에 합산됩니다</span></label>
+          <label>부가옵션 <span class="hint">· 표시 금액이 딸깍에 더해집니다</span></label>
           <div class="opts" id="cOpts"></div>
         </div>
       </div>
@@ -305,6 +305,7 @@
       <div class="fld"><label>요금 (VAT포함)</label><input type="number" id="iFee" step="100"></div>
       <div class="fld"><label id="lblComm">수수료 (VAT별도)</label><input type="number" id="iComm" step="10000"></div>
       <div class="fld" id="fldComm2" style="display:none"><label>번들 수수료 (인터넷 결합)</label><input type="number" id="iComm2" step="10000"></div>
+      <div class="fld" id="fldRateOpt" style="display:none"><label>차감율 (%) — 0 이면 수수료 그대로 합산</label><input type="number" id="iRate" step="1" min="0" max="100"></div>
       <label class="chk" id="chkNoDed"><input type="checkbox" id="iNoDed"> 공제액 미적용 (수수료 전액에서 % 차감)</label>
       <label class="chk" id="chkQty" style="display:none"><input type="checkbox" id="iQty"> 수량 입력 허용 (여러 개 붙을 수 있는 옵션)</label>
     </div>
@@ -457,6 +458,14 @@ function simCalc(comm){
   return { base, val: Math.floor(raw/u)*u };
 }
 const simLabel = () => (Number(S.simRate)||0) + "%";
+
+/* 부가옵션: 상품별 차감율. 0 이면 수수료가 그대로 딸깍에 합산되고 마진은 없다 */
+function optCalc(comm, rate){
+  const base = Number(comm)||0, r = Number(rate)||0;
+  if(!r) return { base, val: base };
+  const u = Number(S.unit)||1;
+  return { base, val: Math.floor(base * (1 - r/100) / u) * u };
+}
 const simComm = (it, bundled) => bundled ? (typeof it.comm2 === "number" ? it.comm2 : it.comm) : it.comm;
 const activeRate = () => S.rates.find(r => r.id===S.activeRate) || S.rates[0] || {label:"0%", value:0};
 
@@ -511,7 +520,7 @@ function renderControls(){
     : `<div>인터넷 = ( 수수료 − <b>${won(S.ded)}</b> ) × ( 1 − <b>${activeRate().label}</b> )</div>
        <div>전화 &nbsp;&nbsp;&nbsp;= 수수료 × ( 1 − <b>${telLabel()}</b> ) <span style="opacity:.7">· 공제 없음</span></div>
        <div>유심 &nbsp;&nbsp;&nbsp;= 수수료 × ( 1 − <b>${simLabel()}</b> ) <span style="opacity:.7">· 인터넷 결합 시 번들 수수료</span></div>
-       <div>부가옵션 = 수수료 그대로 합산 <span style="opacity:.7">· 차감 없음</span></div>`;
+       <div>부가옵션 = 수수료 × ( 1 − 상품별 차감율 ) <span style="opacity:.7">· 기본 0% = 그대로 합산</span></div>`;
 }
 
 function renderTable(){
@@ -562,11 +571,14 @@ function renderTable(){
           ? `<td class="num dk active" data-copy="${won(solo.val)}">${cell}</td><td class="num muted">-</td>`
           : `<td class="num dk active" colspan="${cols.length}" data-copy="${won(solo.val)}">${cell}</td>`;
       } else if(g.kind === "opt"){
+        const c = optCalc(it.comm, it.rate);
         mid = office ? "" : `<td class="num muted">-</td>`;
-        const cell = `${won(it.comm)} <span class="tag">그대로 합산</span>${it.qty ? '<small>수량 입력 가능</small>' : ""}`;
+        const cell = `${won(c.val)} <span class="tag">${it.rate ? it.rate + "% 차감" : "그대로 합산"}</span>${
+          it.qty ? '<small>수량 입력 가능</small>' : ""}`;
         dkCells = office
-          ? `<td class="num dk active" data-copy="${won(it.comm)}">${cell}</td><td class="num muted">0</td>`
-          : `<td class="num dk active" colspan="${cols.length}" data-copy="${won(it.comm)}">${cell}</td>`;
+          ? `<td class="num dk active" data-copy="${won(c.val)}">${cell}</td>
+             <td class="num" style="color:var(--accent);font-weight:700">${won(c.base - c.val)}</td>`
+          : `<td class="num dk active" colspan="${cols.length}" data-copy="${won(c.val)}">${cell}</td>`;
       } else if(g.kind === "tv"){
         // BTV 는 합계에 그대로 더해지므로 수수료가 곧 딸깍 기여분
         mid = "";
@@ -644,11 +656,11 @@ function renderOpts(){
   $("#cOptWrap").style.display = list.length ? "" : "none";
   Object.keys(optSel).forEach(id => { if(!list.some(i => i.id === id)) delete optSel[id]; });
   $("#cOpts").innerHTML = list.map(it=>{
-    const on = it.id in optSel;
+    const on = it.id in optSel, c = optCalc(it.comm, it.rate);
     return `<label class="opt${on?" on":""}" data-id="${it.id}">
       <input type="checkbox" ${on?"checked":""}>
       ${esc(it.name.split("//")[0].trim())}
-      <em>${won(it.comm)}</em>
+      <em>${won(c.val)}${it.rate ? ` (${it.rate}%↓)` : ""}</em>
       ${(it.qty && on) ? `<input type="number" class="q" min="1" max="99" value="${optSel[it.id]}">` : ""}
     </label>`;
   }).join("");
@@ -724,10 +736,15 @@ function renderCombo(){
   }
   optItems().forEach(it=>{
     if(!(it.id in optSel)) return;
-    const q = optSel[it.id], sub = it.comm * q;
-    total += sub; fee += it.fee * q;            // 수수료가 그대로 딸깍에 합산 → 마진 0
+    const q = optSel[it.id];
+    const c = optCalc(it.comm, it.rate);
+    const sub = c.val * q, mg = (c.base - c.val) * q;
+    total += sub; margin += mg; fee += it.fee * q;
     rows.push({k:"옵션", n:`${esc(it.name)}${q>1?` <b>× ${q}</b>`:""}`,
-      d: q > 1 ? `${won(it.comm)} × ${q}` : "수수료 그대로 합산", v:sub, plain:true});
+      d: it.rate
+          ? `${won(it.comm)} × ${it.rate}% 차감 = ${won(c.val)}${q>1?` × ${q}`:""}`
+          : (q > 1 ? `${won(it.comm)} × ${q}` : "수수료 그대로 합산"),
+      v:sub, m:mg, plain: !mg});
   });
 
   if(etc > 0){
@@ -789,6 +806,7 @@ function openItem(gid, iid){
   $("#iNoDed").checked = it ? !!it.noDed : false;
   $("#iComm2").value = (it && typeof it.comm2 === "number") ? it.comm2 : "";
   $("#iQty").checked = it ? !!it.qty : false;
+  $("#iRate").value = (it && it.rate) ? it.rate : 0;
   syncItemKind();
   open("#mItem");
   setTimeout(()=>$("#iName").focus(), 30);
@@ -797,6 +815,7 @@ function syncItemKind(){
   const kind = ($("#iGroup").selectedOptions[0]||{}).dataset?.kind || "net";
   $("#fldComm2").style.display = kind === "sim" ? "" : "none";
   $("#chkQty").style.display   = kind === "opt" ? "" : "none";
+  $("#fldRateOpt").style.display = kind === "opt" ? "" : "none";
   $("#chkNoDed").style.display = kind === "net" ? "" : "none";
   $("#lblComm").textContent = kind === "sim" ? "단독 수수료 (VAT별도)" : "수수료 (VAT별도)";
 }
@@ -812,7 +831,7 @@ $("#iSave").onclick = ()=>{
   };
   const gkind = ($("#iGroup").selectedOptions[0]||{}).dataset?.kind;
   if(gkind === "sim") data.comm2 = Number($("#iComm2").value) || 0;
-  if(gkind === "opt") data.qty = $("#iQty").checked;
+  if(gkind === "opt"){ data.qty = $("#iQty").checked; data.rate = Number($("#iRate").value) || 0; }
   const tgt = $("#iGroup").value;
   if(editing){
     const og = S.groups.find(g=>g.id===editing.gid);
